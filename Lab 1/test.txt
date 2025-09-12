@@ -1,5 +1,6 @@
 -- tb_data_path_noprocs.vhd
--- Procedure-free, self-checking testbench for your data_path (Lab1)
+-- Procedure-free, self-checking TB for entity data_path.
+-- Drives your exact ports; uses only standard IEEE libs.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -35,7 +36,7 @@ architecture sim of tb_data_path is
   signal regA_q   : std_logic_vector(31 downto 0);
   signal regB_q   : std_logic_vector(31 downto 0);
 
-  -- ALU opcodes (edit if your encodings differ)
+  -- ALU opcodes (edit if yours differ)
   constant ALU_ADD  : std_logic_vector(3 downto 0) := "0001";
   constant ALU_SUB  : std_logic_vector(3 downto 0) := "0010";
   constant ALU_OR   : std_logic_vector(3 downto 0) := "0011";
@@ -73,13 +74,13 @@ architecture sim of tb_data_path is
   constant X14 : std_logic_vector(4 downto 0) := "01110";
   constant X15 : std_logic_vector(4 downto 0) := "01111";
 
-  -- Optional tags (no procedures; toggled inline)
+  -- Optional: tags to label sections in waves (toggle inline)
   signal t_add, t_sub, t_and, t_or, t_xor,
          t_sll, t_srl, t_sra,
          t_slt, t_sltu,
          t_pcinc, t_beq, t_bne, t_blt, t_bge, t_bltu, t_bgeu, t_jal : std_logic := '0';
 begin
-  -- clock
+  -- 100 MHz clock
   clk <= not clk after 5 ns;
 
   -- DUT
@@ -106,27 +107,27 @@ begin
       regB_q   => regB_q
     );
 
-  -- STIMULUS (no procedures)
+  -- STIM
   stim: process
     variable pc_before : std_logic_vector(31 downto 0);
   begin
     -- RESET
-    reset <= '1';   wait until rising_edge(clk);
-                    wait until rising_edge(clk);
-    reset <= '0';   wait until rising_edge(clk);
+    reset <= '1';  wait until rising_edge(clk);
+                   wait until rising_edge(clk);
+    reset <= '0';  wait until rising_edge(clk);
     assert PC_q = (others=>'0') report "PC not zero after reset" severity failure;
 
-    -- WRITE IMM to x1=5 and x2=3 via ALU: (A=0, B=IMM, ADD), writeback ALU->reg
     -- x1=5
     Asel<=X0; Bsel<=X0; PCAsel<='0'; IMMBsel<='1'; IMM<=x"00000005"; ALUFunc<=ALU_ADD;
     PCDsel<='0'; Dsel<=X1; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
     Asel<=X1; wait for 1 ns; assert regA_q=x"00000005" report "x1 write/read failed" severity failure;
+
     -- x2=3
     Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"00000003"; ALUFunc<=ALU_ADD;
     PCDsel<='0'; Dsel<=X2; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
     Asel<=X2; wait for 1 ns; assert regA_q=x"00000003" report "x2 write/read failed" severity failure;
 
-    -- ADD x3 = x1 + x2 = 8
+    -- ADD x3 = 8
     t_add<='1'; wait for 1 ns;
     Asel<=X1; Bsel<=X2; PCAsel<='0'; IMMBsel<='0'; ALUFunc<=ALU_ADD;
     PCDsel<='0'; Dsel<=X3; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
@@ -134,7 +135,7 @@ begin
     Asel<=X3; wait for 1 ns; assert regA_q=x"00000008" report "x3 writeback wrong" severity failure;
     t_add<='0'; wait for 1 ns;
 
-    -- SUB x4 = x1 - x2 = 2
+    -- SUB x4 = 2
     t_sub<='1'; wait for 1 ns;
     Asel<=X1; Bsel<=X2; ALUFunc<=ALU_SUB; PCDsel<='0'; Dsel<=X4; Dlen<='1';
     wait until rising_edge(clk); Dlen<='0';
@@ -158,7 +159,7 @@ begin
     assert alu_y=x"00000006" report "XOR wrong" severity failure;
     t_xor<='0'; wait for 1 ns;
 
-    -- SHIFTS (value = -128, shamt=4)
+    -- SHIFTS: value=-128, shamt=4
     Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"FFFFFF80"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X8; Dlen<='1';
     wait until rising_edge(clk); Dlen<='0';
     Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"00000004"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X9; Dlen<='1';
@@ -207,7 +208,7 @@ begin
     assert unsigned(PC_q)=unsigned(pc_before)+4 report "PC +4 failed" severity failure;
     t_pcinc<='0'; wait for 1 ns;
 
-    -- Branch target: ALU = PC + IMM, branch unit decides load
+    -- Branch target = PC + IMM, branch unit decides load
     -- BEQ taken (A==B)
     t_beq<='1'; wait for 1 ns;
     PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
@@ -256,7 +257,7 @@ begin
     assert unsigned(PC_q)=unsigned(pc_before)+16 report "BGEU taken failed" severity failure;
     t_bgeu<='0'; wait for 1 ns;
 
-    -- JAL-like: rd := PC (PCDsel=1) and PC <- PC + IMM (PCle=1)
+    -- JAL-like: rd := PC, PC <- PC + 32
     t_jal<='1'; wait for 1 ns;
     pc_before := PC_q;
     PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000020"; ALUFunc<=ALU_ADD; -- ALU = PC + 32
