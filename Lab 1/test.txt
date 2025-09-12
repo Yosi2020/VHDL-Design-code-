@@ -1,6 +1,5 @@
--- tb_data_path.vhd
--- Self-checking testbench for entity data_path (ports match your lab1.vhd)
--- No external packages; only standard IEEE libs.
+-- tb_data_path_noprocs.vhd
+-- Procedure-free, self-checking testbench for your data_path (Lab1)
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -10,7 +9,7 @@ entity tb_data_path is
 end tb_data_path;
 
 architecture sim of tb_data_path is
-  -- ===== DUT ports =====
+  -- DUT ports
   signal clk      : std_logic := '0';
   signal reset    : std_logic := '1';
 
@@ -36,7 +35,7 @@ architecture sim of tb_data_path is
   signal regA_q   : std_logic_vector(31 downto 0);
   signal regB_q   : std_logic_vector(31 downto 0);
 
-  -- ===== ALU opcodes (edit if your ALU encodings differ) =====
+  -- ALU opcodes (edit if your encodings differ)
   constant ALU_ADD  : std_logic_vector(3 downto 0) := "0001";
   constant ALU_SUB  : std_logic_vector(3 downto 0) := "0010";
   constant ALU_OR   : std_logic_vector(3 downto 0) := "0011";
@@ -48,15 +47,15 @@ architecture sim of tb_data_path is
   constant ALU_SRL  : std_logic_vector(3 downto 0) := "1001";
   constant ALU_SRA  : std_logic_vector(3 downto 0) := "1010";
 
-  -- ===== Branch condition encodings =====
+  -- Branch conds (LSB..MSB)
   constant BR_BEQ   : std_logic_vector(2 downto 0) := "000";
   constant BR_BNE   : std_logic_vector(2 downto 0) := "001";
-  constant BR_BLT   : std_logic_vector(2 downto 0) := "010"; -- signed  <
-  constant BR_BGE   : std_logic_vector(2 downto 0) := "011"; -- signed  >=
+  constant BR_BLT   : std_logic_vector(2 downto 0) := "010"; -- signed <
+  constant BR_BGE   : std_logic_vector(2 downto 0) := "011"; -- signed >=
   constant BR_BLTU  : std_logic_vector(2 downto 0) := "110"; -- unsigned <
   constant BR_BGEU  : std_logic_vector(2 downto 0) := "111"; -- unsigned >=
 
-  -- Handy register indexes
+  -- Register IDs
   constant X0  : std_logic_vector(4 downto 0) := "00000";
   constant X1  : std_logic_vector(4 downto 0) := "00001";
   constant X2  : std_logic_vector(4 downto 0) := "00010";
@@ -74,19 +73,16 @@ architecture sim of tb_data_path is
   constant X14 : std_logic_vector(4 downto 0) := "01110";
   constant X15 : std_logic_vector(4 downto 0) := "01111";
 
-  -- Optional: tags to label sections in waves
+  -- Optional tags (no procedures; toggled inline)
   signal t_add, t_sub, t_and, t_or, t_xor,
          t_sll, t_srl, t_sra,
          t_slt, t_sltu,
-         t_pcinc,
-         t_beq, t_bne, t_blt, t_bge, t_bltu, t_bgeu,
-         t_jal : std_logic := '0';
-
+         t_pcinc, t_beq, t_bne, t_blt, t_bge, t_bltu, t_bgeu, t_jal : std_logic := '0';
 begin
-  -- 100 MHz clock
+  -- clock
   clk <= not clk after 5 ns;
 
-  -- DUT instance
+  -- DUT
   uut: entity work.data_path
     port map(
       clk      => clk,
@@ -110,197 +106,168 @@ begin
       regB_q   => regB_q
     );
 
-  -- Helpers
-  procedure step is
-  begin
-    wait until rising_edge(clk);
-  end procedure;
-
-  procedure start(sig : inout std_logic) is
-  begin sig <= '1'; wait for 1 ns; end;
-
-  procedure stop(sig : inout std_logic) is
-  begin sig <= '0'; wait for 1 ns; end;
-
-  -- write rd := IMM via ALU (A=0, B=IMM, ADD), writeback ALU->regfile
-  procedure wr_imm(rd : std_logic_vector(4 downto 0);
-                   v  : std_logic_vector(31 downto 0)) is
-  begin
-    Asel    <= X0;               -- A=0
-    Bsel    <= X0;               -- ignored when IMMBsel='1'
-    PCAsel  <= '0';              -- A from reg
-    IMMBsel <= '1';              -- B from IMM
-    IMM     <= v;
-    ALUFunc <= ALU_ADD;          -- 0 + IMM
-    PCDsel  <= '0';              -- Dbus <= ALU
-    Dsel    <= rd;
-    Dlen    <= '1';
-    step;                         -- write at rising edge
-    Dlen    <= '0';
-  end procedure;
-
-  -- prepare ALU = PC + IMM (for branch/jump targets)
-  procedure prep_pc_plus_imm(off : std_logic_vector(31 downto 0)) is
-  begin
-    PCAsel  <= '1';              -- A <= PC
-    IMMBsel <= '1';              -- B <= IMM
-    IMM     <= off;
-    ALUFunc <= ALU_ADD;
-  end procedure;
-
-  -- Stimulus
+  -- STIMULUS (no procedures)
   stim: process
     variable pc_before : std_logic_vector(31 downto 0);
   begin
     -- RESET
-    reset <= '1'; step; step; reset <= '0'; step;
+    reset <= '1';   wait until rising_edge(clk);
+                    wait until rising_edge(clk);
+    reset <= '0';   wait until rising_edge(clk);
     assert PC_q = (others=>'0') report "PC not zero after reset" severity failure;
 
-    -- Load x1=5, x2=3 and verify reads
-    wr_imm(X1, x"00000005");
-    Asel <= X1; wait for 1 ns; assert regA_q = x"00000005" report "x1 write/read failed" severity failure;
-    wr_imm(X2, x"00000003");
-    Asel <= X2; wait for 1 ns; assert regA_q = x"00000003" report "x2 write/read failed" severity failure;
+    -- WRITE IMM to x1=5 and x2=3 via ALU: (A=0, B=IMM, ADD), writeback ALU->reg
+    -- x1=5
+    Asel<=X0; Bsel<=X0; PCAsel<='0'; IMMBsel<='1'; IMM<=x"00000005"; ALUFunc<=ALU_ADD;
+    PCDsel<='0'; Dsel<=X1; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
+    Asel<=X1; wait for 1 ns; assert regA_q=x"00000005" report "x1 write/read failed" severity failure;
+    -- x2=3
+    Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"00000003"; ALUFunc<=ALU_ADD;
+    PCDsel<='0'; Dsel<=X2; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
+    Asel<=X2; wait for 1 ns; assert regA_q=x"00000003" report "x2 write/read failed" severity failure;
 
-    -- ADD: x3 = x1 + x2 = 8
-    start(t_add);
-    Asel <= X1; Bsel <= X2; PCAsel <= '0'; IMMBsel <= '0'; ALUFunc <= ALU_ADD;
-    PCDsel <= '0'; Dsel <= X3; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y = x"00000008" report "ADD wrong" severity failure;
-    Asel <= X3; wait for 1 ns; assert regA_q = x"00000008" report "x3 writeback wrong" severity failure;
-    stop(t_add);
+    -- ADD x3 = x1 + x2 = 8
+    t_add<='1'; wait for 1 ns;
+    Asel<=X1; Bsel<=X2; PCAsel<='0'; IMMBsel<='0'; ALUFunc<=ALU_ADD;
+    PCDsel<='0'; Dsel<=X3; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
+    assert alu_y=x"00000008" report "ADD wrong" severity failure;
+    Asel<=X3; wait for 1 ns; assert regA_q=x"00000008" report "x3 writeback wrong" severity failure;
+    t_add<='0'; wait for 1 ns;
 
-    -- SUB: x4 = x1 - x2 = 2
-    start(t_sub);
-    Asel <= X1; Bsel <= X2; ALUFunc <= ALU_SUB;
-    PCDsel <= '0'; Dsel <= X4; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y = x"00000002" report "SUB wrong" severity failure;
-    Asel <= X4; wait for 1 ns; assert regA_q = x"00000002" report "x4 writeback wrong" severity failure;
-    stop(t_sub);
+    -- SUB x4 = x1 - x2 = 2
+    t_sub<='1'; wait for 1 ns;
+    Asel<=X1; Bsel<=X2; ALUFunc<=ALU_SUB; PCDsel<='0'; Dsel<=X4; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
+    assert alu_y=x"00000002" report "SUB wrong" severity failure;
+    Asel<=X4; wait for 1 ns; assert regA_q=x"00000002" report "x4 writeback wrong" severity failure;
+    t_sub<='0'; wait for 1 ns;
 
-    -- AND / OR / XOR (5 & 3 = 1, 5 | 3 = 7, 5 ^ 3 = 6)
-    start(t_and);
-    Asel <= X1; Bsel <= X2; ALUFunc <= ALU_AND; PCDsel <= '0'; Dsel <= X5; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y = x"00000001" report "AND wrong" severity failure;
-    stop(t_and);
+    -- AND / OR / XOR
+    t_and<='1'; wait for 1 ns;
+    Asel<=X1; Bsel<=X2; ALUFunc<=ALU_AND; Dsel<=X5; Dlen<='1'; PCDsel<='0';
+    wait until rising_edge(clk); Dlen<='0'; assert alu_y=x"00000001" report "AND wrong" severity failure;
+    t_and<='0'; wait for 1 ns;
 
-    start(t_or);
-    ALUFunc <= ALU_OR ; Dsel <= X6; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y = x"00000007" report "OR wrong" severity failure;
-    stop(t_or);
+    t_or<='1'; wait for 1 ns;
+    ALUFunc<=ALU_OR ; Dsel<=X6; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
+    assert alu_y=x"00000007" report "OR wrong" severity failure;
+    t_or<='0'; wait for 1 ns;
 
-    start(t_xor);
-    ALUFunc <= ALU_XOR; Dsel <= X7; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y = x"00000006" report "XOR wrong" severity failure;
-    stop(t_xor);
+    t_xor<='1'; wait for 1 ns;
+    ALUFunc<=ALU_XOR; Dsel<=X7; Dlen<='1'; wait until rising_edge(clk); Dlen<='0';
+    assert alu_y=x"00000006" report "XOR wrong" severity failure;
+    t_xor<='0'; wait for 1 ns;
 
-    -- Shifts (use negative value to differentiate SRL vs SRA)
-    wr_imm(X8, x"FFFFFF80");   -- -128
-    wr_imm(X9, x"00000004");   -- shamt = 4 (ALU should mask lower 5 bits)
+    -- SHIFTS (value = -128, shamt=4)
+    Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"FFFFFF80"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X8; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
+    Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"00000004"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X9; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
 
-    start(t_sll);
-    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SLL; PCDsel <= '0'; Dsel <= X10; Dlen <= '1'; step; Dlen <= '0';
+    t_sll<='1'; wait for 1 ns;
+    Asel<=X8; Bsel<=X9; ALUFunc<=ALU_SLL; PCDsel<='0'; Dsel<=X10; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
     assert alu_y /= (others=>'0') report "SLL unexpected zero" severity failure;
-    stop(t_sll);
+    t_sll<='0'; wait for 1 ns;
 
-    start(t_srl);
-    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SRL; Dsel <= X11; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y(31) = '0' report "SRL must zero-fill MSB" severity failure;
-    stop(t_srl);
+    t_srl<='1'; wait for 1 ns;
+    Asel<=X8; Bsel<=X9; ALUFunc<=ALU_SRL; Dsel<=X11; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
+    assert alu_y(31)='0' report "SRL must zero-fill" severity failure;
+    t_srl<='0'; wait for 1 ns;
 
-    start(t_sra);
-    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SRA; Dsel <= X12; Dlen <= '1'; step; Dlen <= '0';
-    assert alu_y(31) = '1' report "SRA must sign-extend MSB" severity failure;
-    stop(t_sra);
+    t_sra<='1'; wait for 1 ns;
+    Asel<=X8; Bsel<=X9; ALUFunc<=ALU_SRA; Dsel<=X12; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
+    assert alu_y(31)='1' report "SRA must sign-extend" severity failure;
+    t_sra<='0'; wait for 1 ns;
 
-    -- SLT / SLTU : (-4 < 2) true for signed, false for unsigned
-    wr_imm(X13, x"FFFFFFFC");  -- -4
-    wr_imm(X14, x"00000002");  --  2
+    -- SLT / SLTU: -4 vs 2
+    Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"FFFFFFFC"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X13; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
+    Asel<=X0; Bsel<=X0; IMMBsel<='1'; IMM<=x"00000002"; ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X14; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
 
-    start(t_slt);
-    Asel <= X13; Bsel <= X14; ALUFunc <= ALU_SLT;  Dsel <= X15; Dlen <= '1'; PCDsel <= '0'; step; Dlen <= '0';
-    assert alu_y(0)='1' and alu_y(31 downto 1) = (others=>'0') report "SLT wrong" severity failure;
-    stop(t_slt);
+    t_slt<='1'; wait for 1 ns;
+    Asel<=X13; Bsel<=X14; ALUFunc<=ALU_SLT;  Dsel<=X15; Dlen<='1'; PCDsel<='0';
+    wait until rising_edge(clk); Dlen<='0';
+    assert alu_y(0)='1' and alu_y(31 downto 1)=(others=>'0') report "SLT wrong" severity failure;
+    t_slt<='0'; wait for 1 ns;
 
-    start(t_sltu);
-    Asel <= X13; Bsel <= X14; ALUFunc <= ALU_SLTU; Dsel <= X15; Dlen <= '1'; step; Dlen <= '0';
+    t_sltu<='1'; wait for 1 ns;
+    Asel<=X13; Bsel<=X14; ALUFunc<=ALU_SLTU; Dsel<=X15; Dlen<='1';
+    wait until rising_edge(clk); Dlen<='0';
     assert alu_y = (others=>'0') report "SLTU wrong (unsigned -4 !< 2)" severity failure;
-    stop(t_sltu);
+    t_sltu<='0'; wait for 1 ns;
 
-    -- PC increment +4
-    start(t_pcinc);
+    -- PC +4
+    t_pcinc<='1'; wait for 1 ns;
     pc_before := PC_q;
-    PCie <= '1'; step; PCie <= '0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 4 report "PC +4 failed" severity failure;
-    stop(t_pcinc);
+    PCie<='1'; wait until rising_edge(clk); PCie<='0';
+    assert unsigned(PC_q)=unsigned(pc_before)+4 report "PC +4 failed" severity failure;
+    t_pcinc<='0'; wait for 1 ns;
 
-    -- Branch target computed by ALU = PC + IMM; branch unit decides load
+    -- Branch target: ALU = PC + IMM, branch unit decides load
     -- BEQ taken (A==B)
-    start(t_beq);
-    prep_pc_plus_imm(x"00000010");      -- +16
-    Asel <= X1; Bsel <= X1;             -- A == B
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BEQ; step; isBR <= '0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BEQ taken failed" severity failure;
-    stop(t_beq);
+    t_beq<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X1; Bsel<=X1; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BEQ; wait until rising_edge(clk); isBR<='0';
+    assert unsigned(PC_q)=unsigned(pc_before)+16 report "BEQ taken failed" severity failure;
+    t_beq<='0'; wait for 1 ns;
 
     -- BNE not taken (A==B)
-    start(t_bne);
-    prep_pc_plus_imm(x"00000010");
-    Asel <= X1; Bsel <= X1;
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BNE; step; isBR <= '0';
-    assert PC_q = pc_before report "BNE not-taken failed" severity failure;
-    stop(t_bne);
+    t_bne<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X1; Bsel<=X1; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BNE; wait until rising_edge(clk); isBR<='0';
+    assert PC_q=pc_before report "BNE not-taken failed" severity failure;
+    t_bne<='0'; wait for 1 ns;
 
     -- BLT signed taken: -4 < 2
-    start(t_blt);
-    prep_pc_plus_imm(x"00000010");
-    Asel <= X13; Bsel <= X14;
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BLT; step; isBR <= '0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BLT taken failed" severity failure;
-    stop(t_blt);
+    t_blt<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X13; Bsel<=X14; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BLT; wait until rising_edge(clk); isBR<='0';
+    assert unsigned(PC_q)=unsigned(pc_before)+16 report "BLT taken failed" severity failure;
+    t_blt<='0'; wait for 1 ns;
 
-    -- BGE signed not taken: -4 >= 2 is false
-    start(t_bge);
-    prep_pc_plus_imm(x"00000010");
-    Asel <= X13; Bsel <= X14;
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BGE; step; isBR <= '0';
-    assert PC_q = pc_before report "BGE not-taken failed" severity failure;
-    stop(t_bge);
+    -- BGE signed not taken
+    t_bge<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X13; Bsel<=X14; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BGE; wait until rising_edge(clk); isBR<='0';
+    assert PC_q=pc_before report "BGE not-taken failed" severity failure;
+    t_bge<='0'; wait for 1 ns;
 
-    -- BLTU unsigned not taken: 0xFFFF_FFFC < 2 is false
-    start(t_bltu);
-    prep_pc_plus_imm(x"00000010");
-    Asel <= X13; Bsel <= X14;
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BLTU; step; isBR <= '0';
-    assert PC_q = pc_before report "BLTU not-taken failed" severity failure;
-    stop(t_bltu);
+    -- BLTU unsigned not taken
+    t_bltu<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X13; Bsel<=X14; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BLTU; wait until rising_edge(clk); isBR<='0';
+    assert PC_q=pc_before report "BLTU not-taken failed" severity failure;
+    t_bltu<='0'; wait for 1 ns;
 
-    -- BGEU unsigned taken: 0xFFFF_FFFC >= 2 is true
-    start(t_bgeu);
-    prep_pc_plus_imm(x"00000010");
-    Asel <= X13; Bsel <= X14;
-    pc_before := PC_q;
-    isBR <= '1'; BRcond <= BR_BGEU; step; isBR <= '0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BGEU taken failed" severity failure;
-    stop(t_bgeu);
+    -- BGEU unsigned taken
+    t_bgeu<='1'; wait for 1 ns;
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000010"; ALUFunc<=ALU_ADD;
+    Asel<=X13; Bsel<=X14; pc_before := PC_q;
+    isBR<='1'; BRcond<=BR_BGEU; wait until rising_edge(clk); isBR<='0';
+    assert unsigned(PC_q)=unsigned(pc_before)+16 report "BGEU taken failed" severity failure;
+    t_bgeu<='0'; wait for 1 ns;
 
-    -- JAL-like: rd := PC (via PCDsel=1) and PC <- PC + IMM (via PCle=1)
-    start(t_jal);
+    -- JAL-like: rd := PC (PCDsel=1) and PC <- PC + IMM (PCle=1)
+    t_jal<='1'; wait for 1 ns;
     pc_before := PC_q;
-    prep_pc_plus_imm(x"00000020");      -- ALU = PC + 32
-    PCDsel <= '1'; Dsel <= X8; Dlen <= '1'; PCle <= '1';
-    step;
-    Dlen   <= '0'; PCle <= '0'; PCDsel <= '0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 32 report "JAL-like PC load failed" severity failure;
-    -- you can also check that reg X8 captured the old PC by selecting Asel<=X8
-    Asel <= X8; wait for 1 ns; assert regA_q = pc_before report "JAL-like writeback (rd=PC) failed" severity failure;
-    stop(t_jal);
+    PCAsel<='1'; IMMBsel<='1'; IMM<=x"00000020"; ALUFunc<=ALU_ADD; -- ALU = PC + 32
+    PCDsel<='1'; Dsel<=X8; Dlen<='1'; PCle<='1';
+    wait until rising_edge(clk);
+    Dlen<='0'; PCle<='0'; PCDsel<='0';
+    assert unsigned(PC_q)=unsigned(pc_before)+32 report "JAL-like PC load failed" severity failure;
+    Asel<=X8; wait for 1 ns; assert regA_q=pc_before report "JAL-like rd=PC failed" severity failure;
+    t_jal<='0'; wait for 1 ns;
+
+    report "ALL TESTS PASSED ✅" severity note;
     wait;
   end process;
-
 end architecture;
