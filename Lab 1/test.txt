@@ -1,34 +1,80 @@
--- tb_datapath_all.vhd
--- self-checking testbench for your data_path top (pc, alu, branch, register)
--- includes: section tags for waves, proper BRcond handling, 32-bit buses
+-- tb_data_path.vhd
+-- Self-checking testbench for entity data_path (ports match your lab1.vhd)
+-- No external packages; only standard IEEE libs.
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- brings in control_t_array, flag_array, and cw indices (immBsel, pcDsel, pcAsel, pcle, pcie, dle, isBR, BR0..BR2)
-use work.my_package.all;
+entity tb_data_path is
+end tb_data_path;
 
-entity datapath_testbench is
-end datapath_testbench;
+architecture sim of tb_data_path is
+  -- ===== DUT ports =====
+  signal clk      : std_logic := '0';
+  signal reset    : std_logic := '1';
 
-architecture tb of datapath_testbench is
-  
-  signal imm : std_logic_vector(31 downto 0) := (others => '0');
-  signal asel : std_logic_vector(4 downto 0)  := (others => '0');
-  signal bsel : std_logic_vector(4 downto 0)  := (others => '0');
-  signal alufunc : std_logic_vector(3 downto 0)  := (others => '0');
-  signal dsel : std_logic_vector(4 downto 0)  := (others => '0');
+  signal Asel     : std_logic_vector(4 downto 0) := (others=>'0');
+  signal Bsel     : std_logic_vector(4 downto 0) := (others=>'0');
+  signal Dsel     : std_logic_vector(4 downto 0) := (others=>'0');
+  signal Dlen     : std_logic := '0';
 
-  signal memin : std_logic_vector(31 downto 0) := (others => '0');
-  signal clk : std_logic := '0';
-  signal rst : std_logic := '1';
+  signal PCAsel   : std_logic := '0';
+  signal IMMBsel  : std_logic := '0';
+  signal PCDsel   : std_logic := '0';
+  signal PCle     : std_logic := '0';
+  signal PCie     : std_logic := '0';
 
-  signal memout : std_logic_vector(31 downto 0);
-  signal addr : std_logic_vector(31 downto 0);
-  signal flags : flag_array;
-  signal cw : control_t_array;
+  signal isBR     : std_logic := '0';
+  signal BRcond   : std_logic_vector(2 downto 0) := (others=>'0');
 
+  signal ALUFunc  : std_logic_vector(3 downto 0) := (others=>'0');
+  signal IMM      : std_logic_vector(31 downto 0) := (others=>'0');
+
+  signal PC_q     : std_logic_vector(31 downto 0);
+  signal alu_y    : std_logic_vector(31 downto 0);
+  signal regA_q   : std_logic_vector(31 downto 0);
+  signal regB_q   : std_logic_vector(31 downto 0);
+
+  -- ===== ALU opcodes (edit if your ALU encodings differ) =====
+  constant ALU_ADD  : std_logic_vector(3 downto 0) := "0001";
+  constant ALU_SUB  : std_logic_vector(3 downto 0) := "0010";
+  constant ALU_OR   : std_logic_vector(3 downto 0) := "0011";
+  constant ALU_XOR  : std_logic_vector(3 downto 0) := "0100";
+  constant ALU_AND  : std_logic_vector(3 downto 0) := "0101";
+  constant ALU_SLT  : std_logic_vector(3 downto 0) := "0110";
+  constant ALU_SLTU : std_logic_vector(3 downto 0) := "0111";
+  constant ALU_SLL  : std_logic_vector(3 downto 0) := "1000";
+  constant ALU_SRL  : std_logic_vector(3 downto 0) := "1001";
+  constant ALU_SRA  : std_logic_vector(3 downto 0) := "1010";
+
+  -- ===== Branch condition encodings =====
+  constant BR_BEQ   : std_logic_vector(2 downto 0) := "000";
+  constant BR_BNE   : std_logic_vector(2 downto 0) := "001";
+  constant BR_BLT   : std_logic_vector(2 downto 0) := "010"; -- signed  <
+  constant BR_BGE   : std_logic_vector(2 downto 0) := "011"; -- signed  >=
+  constant BR_BLTU  : std_logic_vector(2 downto 0) := "110"; -- unsigned <
+  constant BR_BGEU  : std_logic_vector(2 downto 0) := "111"; -- unsigned >=
+
+  -- Handy register indexes
+  constant X0  : std_logic_vector(4 downto 0) := "00000";
+  constant X1  : std_logic_vector(4 downto 0) := "00001";
+  constant X2  : std_logic_vector(4 downto 0) := "00010";
+  constant X3  : std_logic_vector(4 downto 0) := "00011";
+  constant X4  : std_logic_vector(4 downto 0) := "00100";
+  constant X5  : std_logic_vector(4 downto 0) := "00101";
+  constant X6  : std_logic_vector(4 downto 0) := "00110";
+  constant X7  : std_logic_vector(4 downto 0) := "00111";
+  constant X8  : std_logic_vector(4 downto 0) := "01000";
+  constant X9  : std_logic_vector(4 downto 0) := "01001";
+  constant X10 : std_logic_vector(4 downto 0) := "01010";
+  constant X11 : std_logic_vector(4 downto 0) := "01011";
+  constant X12 : std_logic_vector(4 downto 0) := "01100";
+  constant X13 : std_logic_vector(4 downto 0) := "01101";
+  constant X14 : std_logic_vector(4 downto 0) := "01110";
+  constant X15 : std_logic_vector(4 downto 0) := "01111";
+
+  -- Optional: tags to label sections in waves
   signal t_add, t_sub, t_and, t_or, t_xor,
          t_sll, t_srl, t_sra,
          t_slt, t_sltu,
@@ -36,284 +82,224 @@ architecture tb of datapath_testbench is
          t_beq, t_bne, t_blt, t_bge, t_bltu, t_bgeu,
          t_jal : std_logic := '0';
 
-  -- alu ops
-  constant alu_add : std_logic_vector(3 downto 0) := "0001";
-  constant alu_sub : std_logic_vector(3 downto 0) := "0010";
-  constant alu_or : std_logic_vector(3 downto 0) := "0011";
-  constant alu_xor : std_logic_vector(3 downto 0) := "0100";
-  constant alu_and : std_logic_vector(3 downto 0) := "0101";
-  constant alu_slt : std_logic_vector(3 downto 0) := "0110";
-  constant alu_sltu : std_logic_vector(3 downto 0) := "0111";
-  constant alu_sll : std_logic_vector(3 downto 0) := "1000";
-  constant alu_srl : std_logic_vector(3 downto 0) := "1001";
-  constant alu_sra : std_logic_vector(3 downto 0) := "1010";
-
-  -- branch conds
-  constant br_beq : std_logic_vector(2 downto 0) := "000";
-  constant br_bne : std_logic_vector(2 downto 0) := "001";
-  constant br_blt : std_logic_vector(2 downto 0) := "010"; -- signed  <
-  constant br_bge : std_logic_vector(2 downto 0) := "011"; -- signed  >=
-  constant br_bltu : std_logic_vector(2 downto 0) := "110"; -- unsigned <
-  constant br_bgeu : std_logic_vector(2 downto 0) := "111"; -- unsigned >=
-
-  -- flag bit positions (edit if your flag_array order differs)
-  constant f_z : natural := 0; -- zero
-  constant f_n : natural := 1; -- negative
-  constant f_c : natural := 2; -- carry
-  constant f_v : natural := 3; -- overflow
-
-  -- register ids (5-bit)
-  constant x0 : std_logic_vector(4 downto 0) := "00000";
-  constant x1 : std_logic_vector(4 downto 0) := "00001";
-  constant x2 : std_logic_vector(4 downto 0) := "00010";
-  constant x3 : std_logic_vector(4 downto 0) := "00011";
-  constant x4 : std_logic_vector(4 downto 0) := "00100";
-  constant x5 : std_logic_vector(4 downto 0) := "00101";
-  constant x6 : std_logic_vector(4 downto 0) := "00110";
-  constant x7 : std_logic_vector(4 downto 0) := "00111";
-  constant x8 : std_logic_vector(4 downto 0) := "01000";
-  constant x9 : std_logic_vector(4 downto 0) := "01001";
-  constant x10 : std_logic_vector(4 downto 0) := "01010";
-  constant x11 : std_logic_vector(4 downto 0) := "01011";
-  constant x12 : std_logic_vector(4 downto 0) := "01100";
-  constant x13 : std_logic_vector(4 downto 0) := "01101";
-  constant x14 : std_logic_vector(4 downto 0) := "01110";
-  constant x15 : std_logic_vector(4 downto 0) := "01111";
-
 begin
+  -- 100 MHz clock
+  clk <= not clk after 5 ns;
 
-  clk <= not clk after 5 ns;  -- 100 MHz
-
+  -- DUT instance
   uut: entity work.data_path
-    port map (
-      cw       => cw,
-      imm      => imm,
-      asel     => asel,
-      bsel     => bsel,
-      alufunc  => alufunc,
-      dsel     => dsel,
-      memin    => memin,
+    port map(
       clk      => clk,
-      rst      => rst,
-      memout   => memout,
-      addr     => addr,
-      flags    => flags
+      reset    => reset,
+      Asel     => Asel,
+      Bsel     => Bsel,
+      Dsel     => Dsel,
+      Dlen     => Dlen,
+      PCAsel   => PCAsel,
+      IMMBsel  => IMMBsel,
+      PCDsel   => PCDsel,
+      PCle     => PCle,
+      PCie     => PCie,
+      isBR     => isBR,
+      BRcond   => BRcond,
+      ALUFunc  => ALUFunc,
+      IMM      => IMM,
+      PC_q     => PC_q,
+      alu_y    => alu_y,
+      regA_q   => regA_q,
+      regB_q   => regB_q
     );
-  
--- clock start and reset
+
+  -- Helpers
   procedure step is
   begin
     wait until rising_edge(clk);
   end procedure;
 
-  procedure cw_clear is
+  procedure start(sig : inout std_logic) is
+  begin sig <= '1'; wait for 1 ns; end;
+
+  procedure stop(sig : inout std_logic) is
+  begin sig <= '0'; wait for 1 ns; end;
+
+  -- write rd := IMM via ALU (A=0, B=IMM, ADD), writeback ALU->regfile
+  procedure wr_imm(rd : std_logic_vector(4 downto 0);
+                   v  : std_logic_vector(31 downto 0)) is
   begin
-    cw <= (others => '0');
-    wait for 1 ns;
+    Asel    <= X0;               -- A=0
+    Bsel    <= X0;               -- ignored when IMMBsel='1'
+    PCAsel  <= '0';              -- A from reg
+    IMMBsel <= '1';              -- B from IMM
+    IMM     <= v;
+    ALUFunc <= ALU_ADD;          -- 0 + IMM
+    PCDsel  <= '0';              -- Dbus <= ALU
+    Dsel    <= rd;
+    Dlen    <= '1';
+    step;                         -- write at rising edge
+    Dlen    <= '0';
   end procedure;
 
-  -- the BRcond is 2-0 so we have like BR1, BR2, BR3
-  procedure set_br(cond : std_logic_vector(2 downto 0)) is
+  -- prepare ALU = PC + IMM (for branch/jump targets)
+  procedure prep_pc_plus_imm(off : std_logic_vector(31 downto 0)) is
   begin
-    cw(BR0) <= cond(0);
-    cw(BR1) <= cond(1);
-    cw(BR2) <= cond(2);
+    PCAsel  <= '1';              -- A <= PC
+    IMMBsel <= '1';              -- B <= IMM
+    IMM     <= off;
+    ALUFunc <= ALU_ADD;
   end procedure;
 
-  procedure start(sig : inout std_logic) is begin sig <= '1'; wait for 1 ns; end;
-  procedure stop (sig : inout std_logic) is begin sig <= '0'; wait for 1 ns; end;
-
-  -- write: rd := imm   via A=0, B=imm, D<=ALU
-  procedure wr_imm (rd : in std_logic_vector(4 downto 0);
-                    v  : in std_logic_vector(31 downto 0)) is
-  begin
-    asel     <= x0;
-    bsel     <= x0;          -- ignored when immBsel='1'
-    imm      <= v;
-    alufunc  <= alu_add;     -- 0 + imm
-    cw_clear;
-    cw(immBsel) <= '1';      -- B <= IMM
-    cw(pcDsel)  <= '0';      -- Dbus <= ALU
-    dsel        <= rd;
-    cw(dle)     <= '1';
-    step;
-    cw(dle)     <= '0';
-  end procedure;
-
-  -- select ALU sources quickly
-  procedure alu_src (use_pc_a, use_imm_b : in std_logic) is
-  begin
-    cw(pcAsel)  <= use_pc_a;   -- A <= PC when '1', else A <= reg(asel)
-    cw(immBsel) <= use_imm_b;  -- B <= IMM when '1', else B <= reg(bsel)
-  end procedure;
-
-  -- jal-like: rd := PC   and   PC <- PC + IMM
-  procedure do_jal (rd : in std_logic_vector(4 downto 0);
-                    off: in std_logic_vector(31 downto 0)) is
-  begin
-    imm      <= off;
-    alufunc  <= alu_add;
-    cw_clear;
-    alu_src('1','1');         -- A=PC, B=IMM
-    cw(pcDsel) <= '1';        -- write-back PC to rd
-    dsel       <= rd;
-    cw(dle)    <= '1';
-    cw(pcle)   <= '1';        -- PC <- ALU
-    step;
-    cw(dle)    <= '0';
-    cw(pcle)   <= '0';
-  end procedure;
-
-  --------------------------------------------------------------------------
-  -- stimulus
-  --------------------------------------------------------------------------
+  -- Stimulus
   stim: process
     variable pc_before : std_logic_vector(31 downto 0);
   begin
     -- RESET
-    cw_clear;
-    rst <= '1'; step; step;
-    rst <= '0'; step;
-    assert addr = (others => '0') report "pc not zero after reset" severity failure;
+    reset <= '1'; step; step; reset <= '0'; step;
+    assert PC_q = (others=>'0') report "PC not zero after reset" severity failure;
 
-    -- LOAD X1=5, X2=3
-    wr_imm(x1, x"00000005");
-    wr_imm(x2, x"00000003");
+    -- Load x1=5, x2=3 and verify reads
+    wr_imm(X1, x"00000005");
+    Asel <= X1; wait for 1 ns; assert regA_q = x"00000005" report "x1 write/read failed" severity failure;
+    wr_imm(X2, x"00000003");
+    Asel <= X2; wait for 1 ns; assert regA_q = x"00000003" report "x2 write/read failed" severity failure;
 
-    -- ADD
+    -- ADD: x3 = x1 + x2 = 8
     start(t_add);
-    asel <= x1; bsel <= x2; alufunc <= alu_add;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x3; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='0' and flags(f_n)='0' report "add 5+3 flags unexpected" severity failure;
+    Asel <= X1; Bsel <= X2; PCAsel <= '0'; IMMBsel <= '0'; ALUFunc <= ALU_ADD;
+    PCDsel <= '0'; Dsel <= X3; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = x"00000008" report "ADD wrong" severity failure;
+    Asel <= X3; wait for 1 ns; assert regA_q = x"00000008" report "x3 writeback wrong" severity failure;
     stop(t_add);
 
-    -- SUB
+    -- SUB: x4 = x1 - x2 = 2
     start(t_sub);
-    asel <= x1; bsel <= x2; alufunc <= alu_sub;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x4; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='0' and flags(f_n)='0' report "sub 5-3 flags unexpected" severity failure;
+    Asel <= X1; Bsel <= X2; ALUFunc <= ALU_SUB;
+    PCDsel <= '0'; Dsel <= X4; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = x"00000002" report "SUB wrong" severity failure;
+    Asel <= X4; wait for 1 ns; assert regA_q = x"00000002" report "x4 writeback wrong" severity failure;
     stop(t_sub);
 
-    -- ZERO (x1-x1)
-    start(t_and); -- use tag slot just to stack; this block is zero-test
-    asel <= x1; bsel <= x1; alufunc <= alu_sub;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x5; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='1' report "x1-x1 must set zero flag" severity failure;
+    -- AND / OR / XOR (5 & 3 = 1, 5 | 3 = 7, 5 ^ 3 = 6)
+    start(t_and);
+    Asel <= X1; Bsel <= X2; ALUFunc <= ALU_AND; PCDsel <= '0'; Dsel <= X5; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = x"00000001" report "AND wrong" severity failure;
     stop(t_and);
 
-    -- AND / OR / XOR (sanity via flags)
     start(t_or);
-    asel <= x1; bsel <= x2;
-    alufunc <= alu_and; cw_clear; cw(pcDsel) <= '0'; dsel <= x6; cw(dle) <= '1'; step; cw(dle) <= '0';
-    alufunc <= alu_or ; cw_clear; cw(pcDsel) <= '0'; dsel <= x6; cw(dle) <= '1'; step; cw(dle) <= '0';
-    alufunc <= alu_xor; cw_clear; cw(pcDsel) <= '0'; dsel <= x6; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='0' report "logic ops produced zero unexpectedly" severity note;
+    ALUFunc <= ALU_OR ; Dsel <= X6; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = x"00000007" report "OR wrong" severity failure;
     stop(t_or);
 
-    -- SHIFTS (use negative for SRL/SRA difference)
-    wr_imm(x8,  x"FFFF_FF80");  -- -128
-    wr_imm(x9,  x"0000_0004");  -- shamt=4
+    start(t_xor);
+    ALUFunc <= ALU_XOR; Dsel <= X7; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = x"00000006" report "XOR wrong" severity failure;
+    stop(t_xor);
+
+    -- Shifts (use negative value to differentiate SRL vs SRA)
+    wr_imm(X8, x"FFFFFF80");   -- -128
+    wr_imm(X9, x"00000004");   -- shamt = 4 (ALU should mask lower 5 bits)
 
     start(t_sll);
-    asel <= x8; bsel <= x9; alufunc <= alu_sll;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x10; cw(dle) <= '1'; step; cw(dle) <= '0';
+    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SLL; PCDsel <= '0'; Dsel <= X10; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y /= (others=>'0') report "SLL unexpected zero" severity failure;
     stop(t_sll);
 
     start(t_srl);
-    asel <= x8; bsel <= x9; alufunc <= alu_srl;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x11; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_n)='0' report "srl should zero-fill (not negative)" severity failure;
+    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SRL; Dsel <= X11; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y(31) = '0' report "SRL must zero-fill MSB" severity failure;
     stop(t_srl);
 
     start(t_sra);
-    asel <= x8; bsel <= x9; alufunc <= alu_sra;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x12; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_n)='1' report "sra should sign-extend (negative)" severity failure;
+    Asel <= X8; Bsel <= X9; ALUFunc <= ALU_SRA; Dsel <= X12; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y(31) = '1' report "SRA must sign-extend MSB" severity failure;
     stop(t_sra);
 
-    -- SLT / SLTU with -4 vs +2
-    wr_imm(x13, x"FFFF_FFFC");  -- -4
-    wr_imm(x14, x"00000002");   -- +2
+    -- SLT / SLTU : (-4 < 2) true for signed, false for unsigned
+    wr_imm(X13, x"FFFFFFFC");  -- -4
+    wr_imm(X14, x"00000002");  --  2
 
     start(t_slt);
-    asel <= x13; bsel <= x14; alufunc <= alu_slt;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x15; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='0' report "slt (-4 < 2) should be non-zero" severity note;
+    Asel <= X13; Bsel <= X14; ALUFunc <= ALU_SLT;  Dsel <= X15; Dlen <= '1'; PCDsel <= '0'; step; Dlen <= '0';
+    assert alu_y(0)='1' and alu_y(31 downto 1) = (others=>'0') report "SLT wrong" severity failure;
     stop(t_slt);
 
     start(t_sltu);
-    asel <= x13; bsel <= x14; alufunc <= alu_sltu;
-    cw_clear; cw(pcDsel) <= '0'; dsel <= x15; cw(dle) <= '1'; step; cw(dle) <= '0';
-    assert flags(f_z)='1' report "sltu (0xFFFF_FFFC < 2) should be false" severity note;
+    Asel <= X13; Bsel <= X14; ALUFunc <= ALU_SLTU; Dsel <= X15; Dlen <= '1'; step; Dlen <= '0';
+    assert alu_y = (others=>'0') report "SLTU wrong (unsigned -4 !< 2)" severity failure;
     stop(t_sltu);
 
-    -- PC +4
+    -- PC increment +4
     start(t_pcinc);
-    pc_before := addr;
-    cw_clear; cw(pcie) <= '1'; step; cw(pcie) <= '0';
-    assert unsigned(addr) = unsigned(pc_before) + 4 report "pc increment (+4) failed" severity failure;
+    pc_before := PC_q;
+    PCie <= '1'; step; PCie <= '0';
+    assert unsigned(PC_q) = unsigned(pc_before) + 4 report "PC +4 failed" severity failure;
     stop(t_pcinc);
 
-    -- BRANCH TARGET via ALU = PC + IMM
-    imm     <= x"00000010";        -- +16
-    alufunc <= alu_add;
-
-    -- BEQ (taken, A==B)
+    -- Branch target computed by ALU = PC + IMM; branch unit decides load
+    -- BEQ taken (A==B)
     start(t_beq);
-    pc_before := addr;
-    cw_clear; alu_src('1','1');    -- A=PC, B=IMM
-    asel <= x1; bsel <= x1;
-    set_br(br_beq); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert unsigned(addr) = unsigned(pc_before) + 16 report "beq taken: pc mismatch" severity failure;
+    prep_pc_plus_imm(x"00000010");      -- +16
+    Asel <= X1; Bsel <= X1;             -- A == B
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BEQ; step; isBR <= '0';
+    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BEQ taken failed" severity failure;
     stop(t_beq);
 
-    -- BNE (not taken, A==B)
+    -- BNE not taken (A==B)
     start(t_bne);
-    pc_before := addr;
-    cw_clear; alu_src('1','1'); asel <= x1; bsel <= x1;
-    set_br(br_bne); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert addr = pc_before report "bne not-taken: pc changed" severity failure;
+    prep_pc_plus_imm(x"00000010");
+    Asel <= X1; Bsel <= X1;
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BNE; step; isBR <= '0';
+    assert PC_q = pc_before report "BNE not-taken failed" severity failure;
     stop(t_bne);
 
-    -- BLT (signed) taken: -4 < 2
+    -- BLT signed taken: -4 < 2
     start(t_blt);
-    pc_before := addr;
-    cw_clear; alu_src('1','1'); asel <= x13; bsel <= x14;
-    set_br(br_blt); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert unsigned(addr) = unsigned(pc_before) + 16 report "blt taken: pc not +16" severity failure;
+    prep_pc_plus_imm(x"00000010");
+    Asel <= X13; Bsel <= X14;
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BLT; step; isBR <= '0';
+    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BLT taken failed" severity failure;
     stop(t_blt);
 
-    -- BGE (signed) not taken: -4 >= 2 is false
+    -- BGE signed not taken: -4 >= 2 is false
     start(t_bge);
-    pc_before := addr;
-    cw_clear; alu_src('1','1'); asel <= x13; bsel <= x14;
-    set_br(br_bge); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert addr = pc_before report "bge not-taken: pc changed" severity failure;
+    prep_pc_plus_imm(x"00000010");
+    Asel <= X13; Bsel <= X14;
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BGE; step; isBR <= '0';
+    assert PC_q = pc_before report "BGE not-taken failed" severity failure;
     stop(t_bge);
 
-    -- BLTU (unsigned) not taken: 0xFFFF_FFFC < 2 is false
+    -- BLTU unsigned not taken: 0xFFFF_FFFC < 2 is false
     start(t_bltu);
-    pc_before := addr;
-    cw_clear; alu_src('1','1'); asel <= x13; bsel <= x14;
-    set_br(br_bltu); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert addr = pc_before report "bltu not-taken: pc changed" severity failure;
+    prep_pc_plus_imm(x"00000010");
+    Asel <= X13; Bsel <= X14;
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BLTU; step; isBR <= '0';
+    assert PC_q = pc_before report "BLTU not-taken failed" severity failure;
     stop(t_bltu);
 
-    -- BGEU (unsigned) taken: 0xFFFF_FFFC >= 2 true
+    -- BGEU unsigned taken: 0xFFFF_FFFC >= 2 is true
     start(t_bgeu);
-    pc_before := addr;
-    cw_clear; alu_src('1','1'); asel <= x13; bsel <= x14;
-    set_br(br_bgeu); cw(isBR) <= '1'; step; cw(isBR) <= '0';
-    assert unsigned(addr) = unsigned(pc_before) + 16 report "bgeu taken: pc not +16" severity failure;
+    prep_pc_plus_imm(x"00000010");
+    Asel <= X13; Bsel <= X14;
+    pc_before := PC_q;
+    isBR <= '1'; BRcond <= BR_BGEU; step; isBR <= '0';
+    assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BGEU taken failed" severity failure;
     stop(t_bgeu);
 
-    -- JAL-like
+    -- JAL-like: rd := PC (via PCDsel=1) and PC <- PC + IMM (via PCle=1)
     start(t_jal);
-    pc_before := addr;
-    do_jal(x8, x"00000020");
-    assert unsigned(addr) = unsigned(pc_before) + 32 report "jal-like (+32) pc wrong" severity failure;
+    pc_before := PC_q;
+    prep_pc_plus_imm(x"00000020");      -- ALU = PC + 32
+    PCDsel <= '1'; Dsel <= X8; Dlen <= '1'; PCle <= '1';
+    step;
+    Dlen   <= '0'; PCle <= '0'; PCDsel <= '0';
+    assert unsigned(PC_q) = unsigned(pc_before) + 32 report "JAL-like PC load failed" severity failure;
+    -- you can also check that reg X8 captured the old PC by selecting Asel<=X8
+    Asel <= X8; wait for 1 ns; assert regA_q = pc_before report "JAL-like writeback (rd=PC) failed" severity failure;
     stop(t_jal);
-
     wait;
   end process;
 
