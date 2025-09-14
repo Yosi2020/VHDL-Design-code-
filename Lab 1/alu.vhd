@@ -64,11 +64,11 @@ begin
                 when "0010" => eyu := Abus and Bbus;
                 when "0011" => eyu := Abus or Bbus;
                 when "0100" => eyu := Abus xor Bbus;
-                when "0101" => eyu := (others => '0'); if signed(Abus) < signed(Bbus) then eyu(0) := '0'; end if;
-                when "0110" => eyu := (others => '0'); if unsigned(Abus) < unsigned(Bbus) then eyu(0) := '0'; end if;  
+                when "0101" => eyu := (others => '0'); if signed(Abus) < signed(Bbus) then eyu(0) := '1'; end if;
+                when "0110" => eyu := (others => '0'); if unsigned(Abus) < unsigned(Bbus) then eyu(0) := '1'; end if;  
                 when "0111" => eyu := std_logic_vector(shift_left(unsigned(Abus), TO_INTEGER(unsigned(Bbus(4 downto 0)))));
                 when "1000" => eyu := std_logic_vector(shift_right(unsigned(Abus), TO_INTEGER(unsigned(Bbus(4 downto 0)))));
-                when "1001" => eyu := std_logic_vector(shift_right(signed(Abus), TO_INTEGER(signed(Bbus(4 downto 0)))));     
+                when "1001" => eyu := std_logic_vector(shift_right(signed(Abus), TO_INTEGER(unsigned(Bbus(4 downto 0)))));     
                 when others => eyu := (others => '0');      
              end case;
              eyu_alu <= eyu;
