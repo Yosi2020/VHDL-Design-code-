@@ -60,7 +60,9 @@ begin
              elsif load_enable = '1' then 
                  eyu <= ALUout;
              elsif PCie = '1' then
-                 eyu <= std_logic_vector(unsigned(eyu) + 4);   
+                 eyu <= std_logic_vector(unsigned(eyu) + TO_UNSIGNED(4, eyu'length));   
+             else
+                 eyu <= eyu;
              end if;       
          end if;
          eyu_out <= eyu;
