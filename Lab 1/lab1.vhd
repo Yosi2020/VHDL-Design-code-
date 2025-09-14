@@ -53,6 +53,7 @@ entity data_path is
   alu_y : out std_logic_vector(31 downto 0);
   regA_q : out std_logic_vector(31 downto 0);
   regB_q : out std_logic_vector(31 downto 0)
+  --branch_q : out std_logic
   );
 end data_path;
 
@@ -107,6 +108,8 @@ begin
     B => REGB,
     eyu_output => PCle_sig
     );
+    
+    --branch_q <= PCle_sig;
     
     U_PC : entity work.PC port map(
     clk => clk,
