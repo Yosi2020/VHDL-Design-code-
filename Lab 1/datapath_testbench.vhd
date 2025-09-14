@@ -150,10 +150,11 @@ begin
     IMM<=x"00000005"; 
     ALUFunc<=ALU_ADD;
     PCDsel<='0'; 
+    wait until rising_edge(clk); 
     Dsel<=X1; 
     Dlen<='1'; 
-    --wait until rising_edge(clk); 
-    Dlen<='0';
+    wait until rising_edge(clk); 
+    Dlen <= '0';
     Asel<=X1; 
     wait for 1 ns; 
     --checking the output from the register (Error handler)
@@ -167,13 +168,15 @@ begin
     IMM<=x"00000003"; 
     ALUFunc<=ALU_ADD;
     PCDsel<='0'; 
+    wait until rising_edge(clk);
     Dsel<=X2; 
     Dlen<='1'; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     Asel<=X2; 
     -- Error handler
-    wait for 1 ns; assert regA_q = x"00000003" report "x2 write/read failed" severity failure;
+    wait for 1 ns; 
+    assert regA_q = x"00000003" report "x2 write/read failed" severity failure;
 
 
     -- ADD x3 = 8
@@ -183,10 +186,11 @@ begin
     PCAsel<='0'; 
     IMMBsel<='0'; 
     ALUFunc<=ALU_ADD;
-    PCDsel<='0'; 
+    PCDsel<='0';
+    wait until rising_edge(clk); 
     Dsel<=X3; 
     Dlen<='1'; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000008" report "ADD wrong" severity failure; -- Error handler
     Asel<=X3; wait for 1 ns; 
@@ -200,9 +204,10 @@ begin
     Bsel<=X2; 
     ALUFunc<=ALU_SUB; 
     PCDsel<='0'; 
+    wait until rising_edge(clk); 
     Dsel<=X4; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000002" report "SUB wrong" severity failure; -- Error Handler
     Asel<=X4; wait for 1 ns; 
@@ -214,10 +219,11 @@ begin
     Asel<=X1; 
     Bsel<=X2; 
     ALUFunc<=ALU_AND; 
+    wait until rising_edge(clk); 
     Dsel<=X5; 
     Dlen<='1'; 
     PCDsel<='0';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0'; 
     assert alu_y = x"00000001" report "AND wrong" severity failure; -- Error Handler
     t_and<='0'; wait for 1 ns;
@@ -225,9 +231,10 @@ begin
     -- OR
     t_or<='1'; wait for 1 ns;
     ALUFunc<=ALU_OR ; 
+    wait until rising_edge(clk); 
     Dsel<=X6; 
     Dlen<='1'; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000007" report "OR wrong" severity failure; -- Error Handler
     t_or<='0'; wait for 1 ns;
@@ -235,8 +242,10 @@ begin
     --XOR
     t_xor<='1'; wait for 1 ns;
     ALUFunc<=ALU_XOR; 
-    Dsel<=X7; Dlen<='1'; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
+    Dsel<=X7; 
+    Dlen<='1'; 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000006" report "XOR wrong" severity failure; -- Error Handler
     t_xor<='0'; wait for 1 ns;
@@ -248,9 +257,10 @@ begin
     IMM<=x"FFFFFF80"; 
     ALUFunc<=ALU_ADD; 
     PCDsel<='0'; 
+    wait until rising_edge(clk); 
     Dsel<=X8; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     Asel<=X0; 
     Bsel<=X0; 
@@ -258,9 +268,10 @@ begin
     IMM<=x"00000004"; 
     ALUFunc<=ALU_ADD; 
     PCDsel<='0'; 
+    wait until rising_edge(clk); 
     Dsel<=X9; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
 
     -- SLL
@@ -293,9 +304,10 @@ begin
     Asel<=X8; 
     Bsel<=X9; 
     ALUFunc<=ALU_SRA; 
+    wait until rising_edge(clk); 
     Dsel<=X12; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y(31) = '1' report "SRA must sign-extend" severity failure; -- Error Handler
     t_sra<='0'; wait for 1 ns;
@@ -306,7 +318,7 @@ begin
     IMMBsel<='1'; 
     IMM<=x"FFFFFFFC"; 
     ALUFunc<=ALU_ADD; PCDsel<='0'; Dsel<=X13; Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     Asel<=X0; 
     Bsel<=X0; 
@@ -316,18 +328,19 @@ begin
     PCDsel<='0'; 
     Dsel<=X14; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     
     -- SLT
     t_slt<='1'; wait for 1 ns;
     Asel<=X13; 
     Bsel<=X14; 
-    ALUFunc<=ALU_SLT;  
+    ALUFunc<=ALU_SLT; 
+    wait until rising_edge(clk);  
     Dsel<=X15; 
     Dlen<='1'; 
     PCDsel<='0';
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000001" report "SLT wrong" severity failure; -- Error Handler
     t_slt<='0'; wait for 1 ns;
@@ -337,19 +350,24 @@ begin
     Asel<=X13; 
     Bsel<=X14; 
     ALUFunc<=ALU_SLTU; 
+    wait until rising_edge(clk); 
     Dsel<=X15; 
     Dlen<='1';
-    --wait until rising_edge(clk); 
+    --PCDsel<='0';
+    wait until rising_edge(clk); 
     Dlen<='0';
     assert alu_y = x"00000000" report "SLTU wrong" severity failure; -- Error Handler
     t_sltu<='0'; wait for 1 ns;
 
-    -- PC +4
+    -- when PCie is 1 ==> PC +4
     t_pcinc<='1'; wait for 1 ns;
-    pc_before := PC_q;
-    PCie<='1'; wait until rising_edge(clk); 
+    wait until rising_edge(clk);
+    pc_before := PC_q; 
+    PCie<='1'; 
+    wait until rising_edge(clk); 
+    wait until rising_edge(clk);
     PCie<='0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 4 report "PC +4 failed" severity failure;  -- Error Handler
+    assert unsigned(PC_q) = (unsigned(pc_before) + TO_UNSIGNED(4, pc_before'length)) report "PC + 4 failed" severity failure;  -- Error Handler
     t_pcinc<='0'; wait for 1 ns;
     
     -- branch
@@ -358,13 +376,16 @@ begin
     PCAsel<='1'; 
     IMMBsel<='1'; 
     IMM<=x"00000010"; 
-    ALUFunc<=ALU_ADD;
+    ALUFunc<=ALU_ADD; 
     Asel<=X1; 
     Bsel<=X1; 
+    wait until rising_edge(clk);
     pc_before := PC_q;
     isBR<='1'; 
     BRcond<=BR_BEQ; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
+    wait until rising_edge(clk);
+    wait until rising_edge(clk);
     isBR<='0';
     assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BEQ taken failed" severity failure;  -- Error Handler
     t_beq<='0'; wait for 1 ns;
@@ -380,7 +401,7 @@ begin
     pc_before := PC_q;
     isBR<='1'; 
     BRcond<=BR_BNE; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     isBR<='0';
     assert PC_q = pc_before report "BNE not-taken failed" severity failure; -- Error Handler
     t_bne<='0'; wait for 1 ns;
@@ -396,7 +417,7 @@ begin
     pc_before := PC_q;
     isBR<='1'; 
     BRcond<=BR_BLT; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     isBR<='0';
     assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BLT taken failed" severity failure; -- Error Handler
     t_blt<='0'; wait for 1 ns;
@@ -440,31 +461,36 @@ begin
     ALUFunc<=ALU_ADD;
     Asel<=X13; 
     Bsel<=X14; 
+    wait until rising_edge(clk); 
     pc_before := PC_q;
     isBR<='1'; 
     BRcond<=BR_BGEU; 
-    --wait until rising_edge(clk); 
+    wait until rising_edge(clk); 
     isBR<='0';
     assert unsigned(PC_q) = unsigned(pc_before) + 16 report "BGEU taken failed" severity failure; -- Error Handler
     t_bgeu<='0'; wait for 1 ns;
 
     -- JAL-like: rd := PC, PC <- PC + 32
     t_jal<='1'; wait for 1 ns;
+    wait until rising_edge(clk);
     pc_before := PC_q;
     PCAsel<='1'; 
     IMMBsel<='1'; 
     IMM<=x"00000020"; 
     ALUFunc<=ALU_ADD;
+    wait until rising_edge(clk);
     PCDsel<='1'; 
     Dsel<=X8; 
     Dlen<='1'; 
     PCle<='1';
-    --wait until rising_edge(clk);
+    wait until rising_edge(clk);
+    wait until rising_edge(clk);
     Dlen<='0'; 
     PCle<='0'; 
     PCDsel<='0';
-    assert unsigned(PC_q) = unsigned(pc_before) + 32 report "JAL-like PC load failed" severity failure;
-    Asel<=X8; wait for 1 ns; assert regA_q = pc_before report "JAL-like rd=PC failed" severity failure;
+    assert unsigned(PC_q) = unsigned(pc_before) +32 report "JAL-like PC load failed" severity failure;
+    Asel<=X8; wait for 1 ns; 
+    assert regA_q = pc_q report "JAL-like rd=PC failed" severity failure;
     t_jal<='0'; wait for 1 ns;
 
     wait;
