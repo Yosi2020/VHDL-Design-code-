@@ -61,23 +61,23 @@ architecture Behavioral of decoder is
      constant OPC_store : std_logic_vector(6 downto 0) := "0100011"; -- store
      constant OPC_branch : std_logic_vector(6 downto 0) := "1100011"; -- branches
      constant OPC_JALR : std_logic_vector(6 downto 0) := "1100111"; -- JALR
-     constant OPC_JAL : std_logic_vector(6 downto 0) := "11-1111"; -- JAL
+     constant OPC_JAL : std_logic_vector(6 downto 0) := "1101111"; -- JAL
      constant OPC_lui : std_logic_vector(6 downto 0) := "0110111"; -- LUI
      constant OPC_AUIPC : std_logic_vector(6 downto 0) := "0010111"; -- AUIPC
      constant OPC_System : std_logic_vector(6 downto 0) := "1110011"; -- system (ecall/ebreak/csr)
      constant OPC_MISC : std_logic_vector(6 downto 0) := "0001111"; -- Fench
      
      -- alu function constants 
-     constant ALU_add : std_logic_vector (3 downto 0) := "0000";
-     constant ALU_sub : std_logic_vector (3 downto 0) := "0001";
-     constant ALU_and : std_logic_vector (3 downto 0) := "0010";
-     constant ALU_or : std_logic_vector (3 downto 0) := "0011";
-     constant ALU_xor : std_logic_vector (3 downto 0) := "0100";
-     constant ALU_slt : std_logic_vector (3 downto 0) := "0101";
-     constant ALU_sltu : std_logic_vector (3 downto 0) := "0110";
-     constant ALU_sll : std_logic_vector (3 downto 0) := "0111";
-     constant ALU_srl : std_logic_vector (3 downto 0) := "1000";
-     constant ALU_sra : std_logic_vector (3 downto 0) := "1001";
+     constant ALU_add : std_logic_vector (4 downto 0) := "00000";
+     constant ALU_sub : std_logic_vector (4 downto 0) := "00001";
+     constant ALU_and : std_logic_vector (4 downto 0) := "00010";
+     constant ALU_or : std_logic_vector (4 downto 0) := "00011";
+     constant ALU_xor : std_logic_vector (4 downto 0) := "00100";
+     constant ALU_slt : std_logic_vector (4 downto 0) := "00101";
+     constant ALU_sltu : std_logic_vector (4 downto 0) := "00110";
+     constant ALU_sll : std_logic_vector (4 downto 0) := "00111";
+     constant ALU_srl : std_logic_vector (4 downto 0) := "01000";
+     constant ALU_sra : std_logic_vector (4 downto 0) := "01001";
      
      -- extract fields from the table imm (funct7), rs2, rs2, funct3, rd, opcode
      signal opcode : std_logic_vector(6 downto 0);
@@ -120,10 +120,8 @@ architecture Behavioral of decoder is
      
      -- for U type
      function imm_u(eyu : std_logic_vector(31 downto 0)) return std_logic_vector is
-     variable raw : std_logic_vector(19 downto 0);
      begin
-          raw := eyu(31 downto 12);
-          return set_extend32(raw);
+          return eyu(31 downto 12) & (11 downto 0 => '0');
      end;
      
      -- J-type
@@ -152,7 +150,7 @@ architecture Behavioral of decoder is
      function decoder_alu(opcode : std_logic_vector(6 downto 0);
                           f3 : std_logic_vector(2 downto 0);
                           f7 : std_logic_vector(6 downto 0))
-                          return std_logic_vector is
+                          return std_logic_vector(4 downto 0)  is
      begin
          if opcode = OPC_OP then
             case f3 is
