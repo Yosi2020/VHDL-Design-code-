@@ -58,16 +58,16 @@ begin
   clk <= not clk after T/2;
 
   -- UUT
-  UUT: entity work.cpu_top
+  UUT: entity work.connector
     port map (
       clk     => clk,
       reset   => reset,
-      instr   => instr,
+      eyu   => instr,
       pc_q    => pc_q,
       alu_y   => alu_y,
       regA_q  => regA_q,
       regB_q  => regB_q,
-      illegal => illegal
+      eyu_illegal => illegal
     );
 
   -- Stimulus
