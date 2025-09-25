@@ -1,22 +1,18 @@
 
 ----------------------------------------------------------------------------------
--- Company:
 -- Engineer: Eyosi
---
--- Testbench: RISCV_Inst_Conn_tb_eyu_fixed
--- Purpose  : Integrated test of connector (decoder + datapath)
---            Uses ASSERT ... SEVERITY WARNING like the prof's TB.
---            Uses encoder helpers to avoid wrong hex encodings.
+-- Testbench: RISCV_Inst_Conn_tb_eyu_full
+-- Style    : Professor-style asserts (severity warning), integrated connector UUT
 ----------------------------------------------------------------------------------
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity RISCV_Inst_Conn_tb_eyu_fixed is
-end RISCV_Inst_Conn_tb_eyu_fixed;
+entity RISCV_Inst_Conn_tb_eyu_full is
+end RISCV_Inst_Conn_tb_eyu_full;
 
-architecture Behavioral of RISCV_Inst_Conn_tb_eyu_fixed is
+architecture Behavioral of RISCV_Inst_Conn_tb_eyu_full is
   constant T : time := 10 ns;
 
   -- UUT (connector) ports
@@ -60,14 +56,14 @@ architecture Behavioral of RISCV_Inst_Conn_tb_eyu_fixed is
   begin
     ui := to_signed(imm12, 12);
     v  := to_unsigned(16#13#, 32);                      -- 0010011
-    v  := v + shift_left(resize(unsigned(ui), 32), 20); -- imm[11:0]
+    v  := v + shift_left(resize(unsigned(ui), 32), 20); -- imm
     v  := v + shift_left(to_unsigned(rs1, 32), 15);
     v  := v + shift_left(to_unsigned(funct3, 32), 12);
     v  := v + shift_left(to_unsigned(rd, 32), 7);
     return std_logic_vector(v);
   end function;
 
-  -- I-type shifts (SLLI/SRLI/SRAI)
+  -- I-type shifts
   function enc_I_shift(rs1, rd, funct3, funct7, shamt : natural) return std_logic_vector is
     variable v   : unsigned(31 downto 0) := (others => '0');
     constant sh5 : natural := shamt mod 32;
@@ -91,6 +87,18 @@ architecture Behavioral of RISCV_Inst_Conn_tb_eyu_fixed is
     v := v + shift_left(to_unsigned(rs1, 32), 15);
     v := v + shift_left(to_unsigned(funct3, 32), 12);
     v := v + shift_left(to_unsigned(rd, 32), 7);
+    return std_logic_vector(v);
+  end function;
+
+  -- U-type (LUI/AUIPC)
+  function enc_U(opcode, rd : natural; imm20 : integer) return std_logic_vector is
+    variable v  : unsigned(31 downto 0) := (others => '0');
+    variable ui : signed(19 downto 0);
+  begin
+    ui := to_signed(imm20, 20);
+    v  := to_unsigned(opcode, 32);
+    v  := v + shift_left(resize(unsigned(ui), 32), 12);
+    v  := v + shift_left(to_unsigned(rd, 32), 7);
     return std_logic_vector(v);
   end function;
 
@@ -128,6 +136,34 @@ architecture Behavioral of RISCV_Inst_Conn_tb_eyu_fixed is
     return std_logic_vector(v);
   end function;
 
+  -- Loads / Stores
+  function enc_I_load(rs1, rd, funct3 : natural; imm12 : integer) return std_logic_vector is
+    variable v  : unsigned(31 downto 0) := (others => '0');
+    variable ui : signed(11 downto 0);
+  begin
+    ui := to_signed(imm12, 12);
+    v  := to_unsigned(16#03#, 32);                      -- 0000011
+    v  := v + shift_left(resize(unsigned(ui), 32), 20);
+    v  := v + shift_left(to_unsigned(rs1, 32), 15);
+    v  := v + shift_left(to_unsigned(funct3, 32), 12);
+    v  := v + shift_left(to_unsigned(rd, 32), 7);
+    return std_logic_vector(v);
+  end function;
+
+  function enc_S(rs2, rs1, funct3 : natural; imm12 : integer) return std_logic_vector is
+    variable v  : unsigned(31 downto 0) := (others => '0');
+    variable ui : signed(11 downto 0);
+  begin
+    ui := to_signed(imm12, 12);
+    v  := to_unsigned(16#23#, 32);                      -- 0100011
+    v  := v + shift_left(resize(unsigned(ui(11 downto 5)), 32), 25);
+    v  := v + shift_left(to_unsigned(rs2, 32), 20);
+    v  := v + shift_left(to_unsigned(rs1, 32), 15);
+    v  := v + shift_left(to_unsigned(funct3, 32), 12);
+    v  := v + shift_left(resize(unsigned(ui(4 downto 0)), 32), 7);
+    return std_logic_vector(v);
+  end function;
+
   function to_u32(slv : std_logic_vector) return unsigned is
   begin
     return unsigned(slv);
@@ -159,102 +195,127 @@ begin
     eyu_reset <= '1'; wait for 2*T;
     eyu_reset <= '0'; wait for 1*T;
 
-    -- NOP (legal) + all-zeros (illegal)
-    eyu_instr <= x"00000013"; wait for 5 ns;
+    -- base sanity
+    eyu_instr <= x"00000013"; wait for 5 ns;       -- NOP
     assert eyu_bad='0' report "NOP flagged illegal" severity warning;
-
-    eyu_instr <= (others => '0'); wait for 5 ns;
+    eyu_instr <= (others => '0'); wait for 5 ns;   -- illegal
     assert eyu_bad='1' report "All-zero opcode should be illegal" severity warning;
 
-    ----------------------------------------------------------------
-    -- Seed registers for later ALU checks
-    ----------------------------------------------------------------
-    eyu_instr <= enc_addi_x0(1, 5);  wait for 2*T;    -- x1 = 5
-    eyu_instr <= enc_addi_x0(2, 12); wait for 2*T;    -- x2 = 12
-    eyu_instr <= enc_addi_x0(3, -1); wait for 2*T;    -- x3 = 0xFFFF_FFFF
-    eyu_instr <= enc_addi_x0(4, -8); wait for 2*T;    -- x4 = 0xFFFF_FFF8
+    -- seed regs: x1=5, x2=12, x3=-1, x4=-8
+    eyu_instr <= enc_addi_x0(1, 5);  wait for 2*T;
+    eyu_instr <= enc_addi_x0(2,12);  wait for 2*T;
+    eyu_instr <= enc_addi_x0(3,-1);  wait for 2*T;
+    eyu_instr <= enc_addi_x0(4,-8);  wait for 2*T;
 
-    ----------------------------------------------------------------
-    -- LUI x5,0x12345  -> 0x12345000
-    ----------------------------------------------------------------
-    eyu_instr <= x"123452B7"; wait for 2*T;
-    eyu_instr <= enc_addi_read(5);   wait for 1*T;
-    assert to_u32(eyosi_A_q)=to_unsigned(16#12345000#,32)
-      report "LUI failed: x5 mismatch" severity warning;
+    ---------------------- U-type ----------------------
+    eyu_instr <= enc_U(16#37#, 5, 16#12345#);  wait for 2*T; eyu_instr <= enc_addi_read(5); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(16#12345000#,32) report "LUI x5 wrong" severity warning;
 
-    ----------------------------------------------------------------
-    -- ADDI x15,x1,7 -> 12  (use encoder to avoid wrong hex)
-    ----------------------------------------------------------------
-    eyu_instr <= enc_I(1, 15, 0, 7); wait for 2*T;
-    eyu_instr <= enc_addi_read(15);  wait for 1*T;
-    assert to_u32(eyosi_A_q)=to_unsigned(12,32)
-      report "ADDI x15 failed" severity warning;
-
-    ----------------------------------------------------------------
-    -- SLLI x19,x2,1 -> 24
-    ----------------------------------------------------------------
-    eyu_instr <= enc_I_shift(2, 19, 1, 0, 1); wait for 2*T;
-    eyu_instr <= enc_addi_read(19);          wait for 1*T;
-    assert to_u32(eyosi_A_q)=to_unsigned(24,32)
-      report "SLLI x19 failed" severity warning;
-
-    ----------------------------------------------------------------
-    -- ADD x5,x1,x2 -> 17 ; SUB x6,x1,x2 -> -7
-    ----------------------------------------------------------------
-    eyu_instr <= enc_R(0, 2, 1, 0, 5); wait for 2*T;  -- ADD
-    eyu_instr <= enc_addi_read(5);     wait for 1*T;
-    assert to_u32(eyosi_A_q)=to_unsigned(17,32)
-      report "ADD x5 failed" severity warning;
-
-    eyu_instr <= enc_R(32, 2, 1, 0, 6); wait for 2*T; -- SUB
-    eyu_instr <= enc_addi_read(6);      wait for 1*T;
-    assert signed(eyosi_A_q)=to_signed(-7,32)
-      report "SUB x6 failed" severity warning;
-
-    ----------------------------------------------------------------
-    -- AUIPC x10,0x00100: check writeback to x10 using PC before op
-    ----------------------------------------------------------------
     pc0 := to_u32(eyu_pc_q);
-    eyu_instr <= x"00100517"; wait for 2*T;            -- AUIPC
-    eyu_instr <= enc_addi_read(10); wait for 1*T;
-    assert to_u32(eyosi_A_q)=pc0 + shift_left(to_unsigned(16#00100#,32),12)
-      report "AUIPC x10 failed" severity warning;
+    eyu_instr <= enc_U(16#17#, 10, 16#00100#); wait for 2*T; eyu_instr <= enc_addi_read(10); wait for 1*T;
+    assert to_u32(eyosi_A_q)=pc0 + shift_left(to_unsigned(16#00100#,32),12) report "AUIPC x10 wrong" severity warning;
 
-    ----------------------------------------------------------------
-    -- BEQ x1,x1,+8 : PC should jump by +8
-    ----------------------------------------------------------------
-    pc0 := to_u32(eyu_pc_q);
-    eyu_instr <= enc_B(1,1,0, 8); wait for 2*T;
-    wait for 1*T;  -- allow PC load
-    assert to_u32(eyu_pc_q)=pc0 + 8
-      report "BEQ not taken (expected PC+8)" severity warning;
+    ---------------------- I-type ----------------------
+    eyu_instr <= enc_I(1, 15, 0, 7);  wait for 2*T; eyu_instr <= enc_addi_read(15); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(12,32) report "ADDI x15 wrong" severity warning;
 
-    ----------------------------------------------------------------
-    -- JAL +8 : PC should jump by +8
-    ----------------------------------------------------------------
-    pc0 := to_u32(eyu_pc_q);
+    eyu_instr <= enc_I(1, 16, 6, 3);  wait for 2*T; eyu_instr <= enc_addi_read(16); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(7,32) report "ORI x16 wrong" severity warning;
+
+    eyu_instr <= enc_I(1, 17, 4, 10); wait for 2*T; eyu_instr <= enc_addi_read(17); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(15,32) report "XORI x17 wrong" severity warning;
+
+    eyu_instr <= enc_I(1, 18, 7, 14); wait for 2*T; eyu_instr <= enc_addi_read(18); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(4,32) report "ANDI x18 wrong" severity warning;
+
+    eyu_instr <= enc_I(4, 22, 2, -16); wait for 2*T; eyu_instr <= enc_addi_read(22); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(0,32) report "SLTI x22 wrong" severity warning;
+
+    eyu_instr <= enc_I(3, 23, 3, -1);  wait for 2*T; eyu_instr <= enc_addi_read(23); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(0,32) report "SLTIU x23 wrong" severity warning;
+
+    eyu_instr <= enc_I_shift(2,19,1,0,1);   wait for 2*T; eyu_instr <= enc_addi_read(19); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(24,32) report "SLLI x19 wrong" severity warning;
+
+    eyu_instr <= enc_I_shift(2,20,5,0,1);   wait for 2*T; eyu_instr <= enc_addi_read(20); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(6,32) report "SRLI x20 wrong" severity warning;
+
+    eyu_instr <= enc_I_shift(4,21,5,32,1);  wait for 2*T; eyu_instr <= enc_addi_read(21); wait for 1*T;
+    assert signed(eyosi_A_q)=to_signed(-4,32) report "SRAI x21 wrong" severity warning;
+
+    ---------------------- R-type ----------------------
+    eyu_instr <= enc_R(0, 2, 1, 0, 5);   wait for 2*T; eyu_instr <= enc_addi_read(5);  wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(17,32) report "ADD x5 wrong" severity warning;
+
+    eyu_instr <= enc_R(32,2, 1, 0, 6);   wait for 2*T; eyu_instr <= enc_addi_read(6);  wait for 1*T;
+    assert signed(eyosi_A_q)=to_signed(-7,32) report "SUB x6 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 2, 1, 7, 7);   wait for 2*T; eyu_instr <= enc_addi_read(7);  wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(4,32) report "AND x7 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 2, 1, 6, 8);   wait for 2*T; eyu_instr <= enc_addi_read(8);  wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(13,32) report "OR x8 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 2, 1, 4, 9);   wait for 2*T; eyu_instr <= enc_addi_read(9);  wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(9,32) report "XOR x9 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 2, 1, 1, 10);  wait for 2*T; eyu_instr <= enc_addi_read(10); wait for 1*T;
+    assert to_u32(eyosi_A_q)=shift_left(to_unsigned(5,32), 12) report "SLL x10 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 4, 1, 5, 11);  wait for 2*T; eyu_instr <= enc_addi_read(11); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(0,32) report "SRL x11 wrong" severity warning;
+
+    eyu_instr <= enc_R(32,4, 1, 5, 12);  wait for 2*T; eyu_instr <= enc_addi_read(12); wait for 1*T;
+    assert signed(eyosi_A_q)=to_signed(-1,32) report "SRA x12 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 3, 1, 2, 13);  wait for 2*T; eyu_instr <= enc_addi_read(13); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(0,32) report "SLT x13 wrong" severity warning;
+
+    eyu_instr <= enc_R(0, 3, 1, 3, 14);  wait for 2*T; eyu_instr <= enc_addi_read(14); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(1,32) report "SLTU x14 wrong" severity warning;
+
+    ---------------------- Branches ----------------------
+    pc0 := to_u32(eyu_pc_q);  -- BEQ taken
+    eyu_instr <= enc_B(1,1,0, 8); wait for 2*T; wait for 1*T;
+    assert to_u32(eyu_pc_q)=pc0 + 8 report "BEQ taken wrong" severity warning;
+
+    pc0 := to_u32(eyu_pc_q);  -- BNE not taken
+    eyu_instr <= enc_B(1,1,1, 8); wait for 3*T;
+    assert to_u32(eyu_pc_q)=pc0 + 4 report "BNE not-taken wrong" severity warning;
+
+    pc0 := to_u32(eyu_pc_q);  -- BLT signed taken: x4(-8) < x1(5)
+    eyu_instr <= enc_B(1,4,4, 8); wait for 2*T; wait for 1*T;
+    assert to_u32(eyu_pc_q)=pc0 + 8 report "BLT taken wrong" severity warning;
+
+    pc0 := to_u32(eyu_pc_q);  -- BGE signed not taken: -8 >= 5 false
+    eyu_instr <= enc_B(1,4,5, 8); wait for 3*T;
+    assert to_u32(eyu_pc_q)=pc0 + 4 report "BGE not-taken wrong" severity warning;
+
+    pc0 := to_u32(eyu_pc_q);  -- BLTU unsigned taken: 5 < 0xFFFF_FFFF
+    eyu_instr <= enc_B(3,1,6, 8); wait for 2*T; wait for 1*T;
+    assert to_u32(eyu_pc_q)=pc0 + 8 report "BLTU taken wrong" severity warning;
+
+    pc0 := to_u32(eyu_pc_q);  -- BGEU unsigned taken: 0xFFFF_FFFF >= 5
+    eyu_instr <= enc_B(1,3,7, 8); wait for 2*T; wait for 1*T;
+    assert to_u32(eyu_pc_q)=pc0 + 8 report "BGEU taken wrong" severity warning;
+
+    ---------------------- Jumps ----------------------
+    pc0 := to_u32(eyu_pc_q);  -- JAL
     eyu_instr <= enc_J(6, 8); wait for 3*T;
-    assert to_u32(eyu_pc_q)=pc0 + 8
-      report "JAL PC wrong (expected +8)" severity warning;
+    assert to_u32(eyu_pc_q)=pc0 + 8 report "JAL wrong (+8)" severity warning;
 
-    ----------------------------------------------------------------
-    -- JALR x7,x1,4 : PC should become (x1+4)&~1 = 8
-    -- NOTE: If your PC.vhd doesn't clear bit0 on loads, this will fail.
-    ----------------------------------------------------------------
-    eyu_instr <= enc_I(1, 7, 0, 4); wait for 3*T;  -- JALR via encoder
-    assert to_u32(eyu_pc_q)=to_unsigned(8,32)
-      report "JALR PC wrong (expected 8 with LSB cleared)" severity warning;
+    -- JALR: (x1 + 4) & ~1  = 8  (since x1=5)
+    eyu_instr <= enc_I(1, 7, 0, 4); wait for 3*T;
+    assert to_u32(eyu_pc_q)=to_unsigned(8,32) report "JALR wrong (expect 8)" severity warning;
 
-    ----------------------------------------------------------------
-    -- LOAD/STORE decode-only sanity: just ensure they're legal
-    ----------------------------------------------------------------
-    eyu_instr <= x"00C0A383"; wait for 1*T;            -- LW x7,12(x1)
-    assert eyu_bad='0' report "LW flagged illegal" severity warning;
+    ---------------------- Mem decode-only ----------------------
+    eyu_instr <= enc_I_load(1, 7, 2, 12); wait for 1*T;  -- LW
+    assert eyu_bad='0' report "LW illegal" severity warning;
+    eyu_instr <= enc_S(2, 1, 2, 8);       wait for 1*T;  -- SW
+    assert eyu_bad='0' report "SW illegal" severity warning;
 
-    eyu_instr <= x"0020A423"; wait for 1*T;            -- SW x2,8(x1)
-    assert eyu_bad='0' report "SW flagged illegal" severity warning;
-
-    report "TB finished" severity note;
+    report "FULL TB finished" severity note;
     wait;
   end process;
+
 end Behavioral;
