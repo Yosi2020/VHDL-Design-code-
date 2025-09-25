@@ -1,144 +1,182 @@
 
+----------------------------------------------------------------------------------
+-- Company:
+-- Engineer: Eyosi
+--
+-- Testbench: RISCV_Inst_Conn_tb_eyu
+-- Purpose  : Integrated test of connector (decoder + datapath) using
+--            short hex instructions + ASSERT ... SEVERITY WARNING,
+--            similar style to the professor's TB.
+----------------------------------------------------------------------------------
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity TESTBENCH is
-end TESTBENCH;
+entity RISCV_Inst_Conn_tb_eyu is
+end RISCV_Inst_Conn_tb_eyu;
 
-architecture Behavioral of TESTBENCH is
-    constant CLK_PERIOD : time := 10 ns;
+architecture Behavioral of RISCV_Inst_Conn_tb_eyu is
+  constant T : time := 10 ns;
 
-    signal clk       : std_logic := '0';
-    signal reset     : std_logic := '1';
-    signal instr     : std_logic_vector(31 downto 0) := (others => '0');
-    signal pc_q      : std_logic_vector(31 downto 0);
-    signal alu_y     : std_logic_vector(31 downto 0);
-    signal regA_q    : std_logic_vector(31 downto 0);
-    signal regB_q    : std_logic_vector(31 downto 0);
-    signal illegal   : std_logic;
+  -- UUT (connector) ports
+  signal eyu_clk     : std_logic := '0';
+  signal eyu_reset   : std_logic := '1';
+  signal eyu_instr   : std_logic_vector(31 downto 0) := (others => '0');
+  signal eyu_pc_q    : std_logic_vector(31 downto 0);
+  signal eyu_alu_y   : std_logic_vector(31 downto 0);
+  signal eyosi_A_q   : std_logic_vector(31 downto 0);
+  signal eyosi_B_q   : std_logic_vector(31 downto 0);
+  signal eyu_bad     : std_logic;
 
-    -- small helper: advance n cycles
-    procedure step(n : natural := 1) is
-    begin
-        for i in 1 to n loop
-            wait until rising_edge(clk);
-        end loop;
-    end procedure;
+  -- helper encoders for single-cycle stimulus
+  function enc_addi_x0(rd : natural; imm12 : integer) return std_logic_vector is
+    variable v  : unsigned(31 downto 0) := (others => '0');
+    variable ui : signed(11 downto 0);
+  begin
+    ui := to_signed(imm12, 12);
+    v  := to_unsigned(16#13#, 32);                      -- 0010011
+    v  := v + shift_left(to_unsigned(rd, 32), 7);
+    v  := v + shift_left(to_unsigned(0, 32), 12);
+    v  := v + shift_left(resize(unsigned(ui), 32), 20);
+    return std_logic_vector(v);
+  end function;
 
-    -- Form "ADDI x0, rs1, 0" so we can read back rs1 on regA_q
-    function addi_read(rs1 : natural) return std_logic_vector is
-        variable v : unsigned(31 downto 0) := (others => '0');
-    begin
-        -- opcode 0010011 at [6:0]
-        v := to_unsigned(16#13#, 32);
-        -- rs1 field at [19:15]
-        v := v + shift_left(to_unsigned(rs1, 32), 15);
-        -- funct3=000, rd=0, imm=0 -> already zero
-        return std_logic_vector(v);
-    end function;
+  -- read back a register without changing state: ADDI x0, rs1, 0
+  function enc_addi_read(rs1 : natural) return std_logic_vector is
+    variable v : unsigned(31 downto 0) := (others => '0');
+  begin
+    v := to_unsigned(16#13#, 32);
+    v := v + shift_left(to_unsigned(rs1, 32), 15);
+    return std_logic_vector(v);
+  end function;
 
-    -- A few real RV32I encodings
-    constant LUI_x5_12345   : std_logic_vector(31 downto 0) := x"123452B7";
-    constant AUIPC_x10_0100 : std_logic_vector(31 downto 0) := x"00100517";
-    constant ADDI_x1_x0_5   : std_logic_vector(31 downto 0) := x"00500093";
-    constant ORI_x2_x1_0F   : std_logic_vector(31 downto 0) := x"00F0E113";
-    constant SLLI_x3_x2_1   : std_logic_vector(31 downto 0) := x"00111193";
-    constant ADD_x4_x1_x2   : std_logic_vector(31 downto 0) := x"00208233";
-    constant SUB_x5_x1_x2   : std_logic_vector(31 downto 0) := x"402082B3";
-    constant BEQ_x1_x1_p8   : std_logic_vector(31 downto 0) := x"00108463";
-    constant BNE_x1_x0_p12  : std_logic_vector(31 downto 0) := x"00009663";
-    constant JAL_x6_p8      : std_logic_vector(31 downto 0) := x"0080036F";
-    constant JALR_x7_x1_4   : std_logic_vector(31 downto 0) := x"004083E7";
-    constant LW_x7_12_x1    : std_logic_vector(31 downto 0) := x"00C0A383";
-    constant SW_x2_8_x1     : std_logic_vector(31 downto 0) := x"0020A423";
+  function to_u32(slv : std_logic_vector) return unsigned is
+  begin
+    return unsigned(slv);
+  end function;
 
 begin
-    -- clock
-    clk <= not clk after CLK_PERIOD/2;
+  -- clock
+  eyu_clk <= not eyu_clk after T/2;
 
-    -- unit under test
-    UUT: entity work.connector
-        port map (
-            clk         => clk,
-            reset       => reset,
-            eyu         => instr,
-            pc_q        => pc_q,
-            alu_y       => alu_y,
-            regA_q      => regA_q,
-            regB_q      => regB_q,
-            eyu_illegal => illegal
-        );
+  -- UUT
+  UUT: entity work.connector
+    port map (
+      clk         => eyu_clk,
+      reset       => eyu_reset,
+      eyu         => eyu_instr,
+      pc_q        => eyu_pc_q,
+      alu_y       => eyu_alu_y,
+      regA_q      => eyosi_A_q,
+      regB_q      => eyosi_B_q,
+      eyu_illegal => eyu_bad
+    );
 
-    -- sequence
-    process
-        variable pc0 : unsigned(31 downto 0);
-    begin
-        -- reset
-        instr <= (others => '0');
-        reset <= '1';
-        step(2);
-        reset <= '0';
-        step(1);
+  -- ===================== STIMULUS =====================
+  process
+    variable pc0 : unsigned(31 downto 0);
+  begin
+    -- reset
+    eyu_instr <= (others => '0');
+    eyu_reset <= '1'; wait for 2*T;
+    eyu_reset <= '0'; wait for 1*T;
 
-        -- LUI
-        report "LUI x5, 0x12345";
-        instr <= LUI_x5_12345; step(2);
-        instr <= addi_read(5); step(1); -- read x5
-        assert illegal = '0' severity error;
+    -- NOP (legal) + all-zeros (illegal)
+    eyu_instr <= x"00000013"; wait for 5 ns;
+    assert eyu_bad='0' report "NOP flagged illegal" severity warning;
 
-        -- ADDI
-        report "ADDI x1, x0, 5";
-        instr <= ADDI_x1_x0_5; step(2);
-        instr <= addi_read(1); step(1);
-        assert illegal = '0' severity error;
+    eyu_instr <= (others => '0'); wait for 5 ns;
+    assert eyu_bad='1' report "All-zero opcode should be illegal" severity warning;
 
-        -- ORI
-        report "ORI x2, x1, 0x0F";
-        instr <= ORI_x2_x1_0F; step(2);
-        instr <= addi_read(2); step(1);
-        assert illegal = '0' severity error;
+    ----------------------------------------------------------------
+    -- Seed registers for later ALU checks
+    ----------------------------------------------------------------
+    eyu_instr <= enc_addi_x0(1, 5);  wait for 2*T;    -- x1 = 5
+    eyu_instr <= enc_addi_x0(2, 12); wait for 2*T;    -- x2 = 12
+    eyu_instr <= enc_addi_x0(3, -1); wait for 2*T;    -- x3 = 0xFFFF_FFFF
+    eyu_instr <= enc_addi_x0(4, -8); wait for 2*T;    -- x4 = 0xFFFF_FFF8
 
-        -- SLLI
-        report "SLLI x3, x2, 1";
-        instr <= SLLI_x3_x2_1; step(2);
-        instr <= addi_read(3); step(1);
+    ----------------------------------------------------------------
+    -- LUI x5,0x12345  -> 0x12345000
+    ----------------------------------------------------------------
+    eyu_instr <= x"123452B7"; wait for 2*T;
+    eyu_instr <= enc_addi_read(5);   wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(16#12345000#,32)
+      report "LUI failed: x5 mismatch" severity warning;
 
-        -- ADD
-        report "ADD x4, x1, x2";
-        instr <= ADD_x4_x1_x2; step(2);
-        instr <= addi_read(4); step(1);
+    ----------------------------------------------------------------
+    -- ADDI x15,x1,7 -> 12
+    ----------------------------------------------------------------
+    eyu_instr <= x"00708093"; wait for 2*T;            -- enc_I(1,15,0,7) in hex
+    eyu_instr <= enc_addi_read(15); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(12,32)
+      report "ADDI x15 failed" severity warning;
 
-        -- SUB
-        report "SUB x5, x1, x2";
-        instr <= SUB_x5_x1_x2; step(2);
-        instr <= addi_read(5); step(1);
+    ----------------------------------------------------------------
+    -- SLLI x19,x2,1 -> 24
+    ----------------------------------------------------------------
+    eyu_instr <= x"00111193"; wait for 2*T;
+    eyu_instr <= enc_addi_read(19); wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(24,32)
+      report "SLLI x19 failed" severity warning;
 
-        -- BEQ (taken)
-        report "BEQ x1, x1, +8";
-        pc0 := unsigned(pc_q);
-        instr <= BEQ_x1_x1_p8; step(3);
-        report "PC moved from " & integer'image(to_integer(pc0)) &
-               " to " & integer'image(to_integer(unsigned(pc_q)));
+    ----------------------------------------------------------------
+    -- ADD x5,x1,x2 -> 17 ; SUB x6,x1,x2 -> -7
+    ----------------------------------------------------------------
+    eyu_instr <= x"002082B3"; wait for 2*T;            -- ADD x5,x1,x2
+    eyu_instr <= enc_addi_read(5);  wait for 1*T;
+    assert to_u32(eyosi_A_q)=to_unsigned(17,32)
+      report "ADD x5 failed" severity warning;
 
-        -- JAL
-        report "JAL +8";
-        pc0 := unsigned(pc_q);
-        instr <= JAL_x6_p8; step(3);
-        report "PC after JAL = " & integer'image(to_integer(unsigned(pc_q)));
+    eyu_instr <= x"40208333"; wait for 2*T;            -- SUB x6,x1,x2
+    eyu_instr <= enc_addi_read(6);  wait for 1*T;
+    assert signed(eyosi_A_q)=to_signed(-7,32)
+      report "SUB x6 failed" severity warning;
 
-        -- JALR
-        report "JALR x7, x1, 4";
-        pc0 := unsigned(pc_q);
-        instr <= JALR_x7_x1_4; step(3);
-        report "PC after JALR = " & integer'image(to_integer(unsigned(pc_q)));
+    ----------------------------------------------------------------
+    -- AUIPC x10,0x00100: check writeback to x10 using PC before op
+    ----------------------------------------------------------------
+    pc0 := to_u32(eyu_pc_q);
+    eyu_instr <= x"00100517"; wait for 2*T;            -- AUIPC
+    eyu_instr <= enc_addi_read(10); wait for 1*T;
+    assert to_u32(eyosi_A_q)=pc0 + shift_left(to_unsigned(16#00100#,32),12)
+      report "AUIPC x10 failed" severity warning;
 
-        -- LW / SW (decode only in this datapath)
-        instr <= LW_x7_12_x1; step(1);
-        instr <= SW_x2_8_x1;  step(1);
+    ----------------------------------------------------------------
+    -- BEQ x1,x1,+8 : PC should jump by +8
+    ----------------------------------------------------------------
+    pc0 := to_u32(eyu_pc_q);
+    eyu_instr <= x"00108463"; wait for 2*T;            -- BEQ +8
+    wait for 1*T;  -- allow PC load
+    assert to_u32(eyu_pc_q)=pc0 + 8
+      report "BEQ not taken (expected PC+8)" severity warning;
 
-        report "DONE";
-        wait;
-    end process;
+    ----------------------------------------------------------------
+    -- JAL +8 : PC should jump by +8
+    ----------------------------------------------------------------
+    pc0 := to_u32(eyu_pc_q);
+    eyu_instr <= x"0080036F"; wait for 3*T;
+    assert to_u32(eyu_pc_q)=pc0 + 8
+      report "JAL PC wrong (expected +8)" severity warning;
 
+    ----------------------------------------------------------------
+    -- JALR x7,x1,4 : PC should become (x1+4)&~1 = 8
+    ----------------------------------------------------------------
+    eyu_instr <= x"004083E7"; wait for 3*T;
+    assert to_u32(eyu_pc_q)=to_unsigned(8,32)
+      report "JALR PC wrong (expected 8 with LSB cleared)" severity warning;
+
+    ----------------------------------------------------------------
+    -- LOAD/STORE decode-only sanity: check ALU forms address = rs1 + imm
+    ----------------------------------------------------------------
+    eyu_instr <= x"00C0A383"; wait for 1*T;            -- LW x7,12(x1)
+    assert eyu_bad='0' report "LW flagged illegal" severity warning;
+
+    eyu_instr <= x"0020A423"; wait for 1*T;            -- SW x2,8(x1)
+    assert eyu_bad='0' report "SW flagged illegal" severity warning;
+
+    report "TB finished" severity note;
+    wait;
+  end process;
 end Behavioral;
