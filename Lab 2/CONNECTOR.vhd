@@ -1,0 +1,100 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 09/23/2025 01:17:17 AM
+-- Design Name: 
+-- Module Name: connector - Behavioral
+-- Project Name: 
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.numeric_std.all;
+
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity connector is
+  Port ( 
+    clk   : in  std_logic;
+    reset : in  std_logic;
+    eyu : in  std_logic_vector(31 downto 0);
+    -- observability
+    pc_q   : out std_logic_vector(31 downto 0);
+    alu_y  : out std_logic_vector(31 downto 0);
+    regA_q : out std_logic_vector(31 downto 0);
+    regB_q : out std_logic_vector(31 downto 0);
+    eyu_illegal: out std_logic
+  );
+end connector;
+
+architecture Behavioral of connector is
+      -- wires from decoder
+      signal Asel_s, Bsel_s, Dsel_s : std_logic_vector(4 downto 0);
+      signal Dlen_s, PCAsel_s, IMMBsel_s, PCDsel_s, PCle_s, PCie_s, isBR_s : std_logic;
+      signal BRcond_s : std_logic_vector(2 downto 0);
+      signal ALUFunc_s: std_logic_vector(3 downto 0);
+      signal IMM_s    : std_logic_vector(31 downto 0);
+begin
+    U_DEC : entity work.decoder
+    port map (
+      clk => clk,
+      eyu => eyu,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_s,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_s,
+      PCie => PCie_s,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUfunc => ALUFunc_s,
+      IMM => IMM_s,
+      eyu_illegal => eyu_illegal
+    );
+
+  U_DP : entity work.data_path
+    port map (
+      clk => clk,
+      reset => reset,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_s,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_s,
+      PCie => PCie_s,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUFunc => ALUFunc_s,
+      IMM => IMM_s,
+      pc_q => pc_q,
+      alu_y => alu_y,
+      regA_q => regA_q,
+      regB_q => regB_q
+    );
+
+end Behavioral;
