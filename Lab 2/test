@@ -1,201 +1,518 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
-entity entity_name is
-	generic (
-		-- Users can add generic parameters here
+entity connector is
+  generic (
+    -- AXI interface parameters (ID width, data width, etc.)
+    C_M_AXI_ID_WIDTH  : integer := 1;
+    C_M_AXI_ADDR_WIDTH: integer := 32;
+    C_M_AXI_DATA_WIDTH: integer := 32
+  );
+  port (
+    -- Clock and reset
+    eyu_clk    : in  std_logic;
+    eyu_reset  : in  std_logic;
+    -- AXI4 Master Read Address Channel
+    eyu_M_AXI_ARID    : out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
+    eyu_M_AXI_ARADDR  : out std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0);
+    eyu_M_AXI_ARLEN   : out std_logic_vector(7 downto 0);
+    eyu_M_AXI_ARSIZE  : out std_logic_vector(2 downto 0);
+    eyu_M_AXI_ARBURST : out std_logic_vector(1 downto 0);
+    eyu_M_AXI_ARLOCK  : out std_logic;
+    eyu_M_AXI_ARCACHE : out std_logic_vector(3 downto 0);
+    eyu_M_AXI_ARPROT  : out std_logic_vector(2 downto 0);
+    eyu_M_AXI_ARQOS   : out std_logic_vector(3 downto 0);
+    eyu_M_AXI_ARUSER  : out std_logic_vector(0 downto 0);         -- user signal (width 0 here)
+    eyu_M_AXI_ARVALID : out std_logic;
+    eyu_M_AXI_ARREADY : in  std_logic;
+    -- AXI4 Master Read Data Channel
+    eyu_M_AXI_RID     : in  std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
+    eyu_M_AXI_RDATA   : in  std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0);
+    eyu_M_AXI_RRESP   : in  std_logic_vector(1 downto 0);
+    eyu_M_AXI_RLAST   : in  std_logic;
+    eyu_M_AXI_RUSER   : in  std_logic_vector(0 downto 0);
+    eyu_M_AXI_RVALID  : in  std_logic;
+    eyu_M_AXI_RREADY  : out std_logic;
+    -- Processor outputs (to testbench or higher-level monitor)
+    pc_q       : out std_logic_vector(31 downto 0);
+    eyu_alu_y  : out std_logic_vector(31 downto 0);
+    regA_q     : out std_logic_vector(31 downto 0);
+    regB_q     : out std_logic_vector(31 downto 0);
+    eyu_illegal: out std_logic
+  );
+end connector;
 
-		-- User parameters ends
-		C_M_TARGET_SLAVE_BASE_ADDR : std_logic_vector	:= x"00000000"; -- Base address of targeted slave
-		C_M_AXI_BURST_LEN	     : integer	:= 1; -- Burst Length. Supports 1, 2, 4, 8, 16, 32, 64, 128, 256 burst lengths
-		C_M_AXI_ID_WIDTH	     : integer	:= 1; -- Thread ID Width
-		C_M_AXI_ADDR_WIDTH	   : integer	:= 32; -- Width of Address Bus
-		C_M_AXI_DATA_WIDTH	   : integer	:= 32; -- Width of Data Bus
-		C_M_AXI_AWUSER_WIDTH   : integer	:= 0; -- Width of User Write Address Bus
-		C_M_AXI_ARUSER_WIDTH   : integer	:= 0; -- Width of User Read Address Bus
-		C_M_AXI_WUSER_WIDTH	   : integer	:= 0; -- Width of User Write Data Bus
-		C_M_AXI_RUSER_WIDTH	   : integer	:= 0; -- Width of User Read Data Bus
-		C_M_AXI_BUSER_WIDTH	   : integer	:= 0  -- Width of User Response Bus
-    );
-	port (
-		-- Users can add ports here. These are SUGGESTED user ports.
-		Start_read	 : in std_logic;  -- Initiate AXI read transaction
-    Read_address : in std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0); -- address to read from
- 		Read_Done	: out std_logic; -- Asserts when transaction is complete
-    Read_Data : out std_logic_vector(0 to C_M_AXI_DATA_WIDTH*C_M_AXI_BURST_LEN - 1); -- Data that was read (modify as needed)
-		Error	: out std_logic; -- Asserts when ERROR is detected
-		-- User ports ends
-    -- Global AXI ports
-		M_AXI_ACLK	: in std_logic;    -- Global Clock Signal.
-		M_AXI_ARESETN	: in std_logic;  -- Global Reset Singal. This Signal is Active Low
-    -- AXI Write Address Channel
-		M_AXI_AWID	: out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0); -- Master Interface Write Address ID
-		M_AXI_AWADDR	: out std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0); -- Master Interface Write Address
-		M_AXI_AWLEN	: out std_logic_vector(7 downto 0); -- Burst length. The burst length gives the exact number of transfers in a burst
-		M_AXI_AWSIZE	: out std_logic_vector(2 downto 0); -- Burst size. This signal indicates the size of each transfer in the burst
-		M_AXI_AWBURST	: out std_logic_vector(1 downto 0); -- Burst type. The burst type and the size information, determine how the address for each transfer within the burst is calculated.
-		M_AXI_AWLOCK	: out std_logic; -- Lock type. Provides additional information about the atomic characteristics of the transfer. 
-		M_AXI_AWCACHE	: out std_logic_vector(3 downto 0); -- Memory type. This signal indicates how transactions are required to progress through a system.
-		M_AXI_AWPROT	: out std_logic_vector(2 downto 0); -- Protection type. This signal indicates the privilege and security level of the transaction, and whether the transaction is a data access or an instruction access.
-		M_AXI_AWQOS	: out std_logic_vector(3 downto 0); -- Quality of Service, QoS identifier sent for each write transaction.
-		M_AXI_AWUSER	: out std_logic_vector(C_M_AXI_AWUSER_WIDTH-1 downto 0); -- Optional User-defined signal in the write address channel.
-		M_AXI_AWVALID	: out std_logic; -- Write address valid. This signal indicates that the channel is signaling valid write address and control information.
-		M_AXI_AWREADY	: in std_logic; -- Write address ready. This signal indicates that the slave is ready to accept an address and associated control signals
-    -- AXI Write Data Channel
-		M_AXI_WDATA	: out std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0); -- Master Interface Write Data.
-		M_AXI_WSTRB	: out std_logic_vector(C_M_AXI_DATA_WIDTH/8-1 downto 0); -- Write strobes. This signal indicates which byte lanes hold valid data. There is one write strobe bit for each eight bits of the write data bus.
-		M_AXI_WLAST	: out std_logic; -- Write last. This signal indicates the last transfer in a write burst.
-		M_AXI_WUSER	: out std_logic_vector(C_M_AXI_WUSER_WIDTH-1 downto 0); -- Optional User-defined signal in the write data channel.
-		M_AXI_WVALID	: out std_logic; -- Write valid. This signal indicates that valid write data and strobes are available
-		M_AXI_WREADY	: in std_logic; -- Write ready. This signal indicates that the slave can accept the write data.
-    -- AXI Write Response Channel
-		M_AXI_BID	: in std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0); -- Master Interface Write Response.
-		M_AXI_BRESP	: in std_logic_vector(1 downto 0); -- Write response. This signal indicates the status of the write transaction.
-		M_AXI_BUSER	: in std_logic_vector(C_M_AXI_BUSER_WIDTH-1 downto 0); -- Optional User-defined signal in the write response channel
-		M_AXI_BVALID	: in std_logic; -- Write response valid. This signal indicates that the  channel is signaling a valid write response.
-		M_AXI_BREADY	: out std_logic; -- Response ready. This signal indicates that the master can accept a write response.
-    -- AXI Read Address Channel
-		M_AXI_ARID	: out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0); -- Master Interface Read Address.
-		M_AXI_ARADDR	: out std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0); -- Read address. This signal indicates the initial address of a read burst transaction.
-		M_AXI_ARLEN	: out std_logic_vector(7 downto 0); -- Burst length. The burst length gives the exact number of transfers in a burst
-		M_AXI_ARSIZE	: out std_logic_vector(2 downto 0); -- Burst size. This signal indicates the size of each transfer in the burst
-		M_AXI_ARBURST	: out std_logic_vector(1 downto 0); -- Burst type. The burst type and the size information, determine how the address for each transfer within the burst is calculated.
-		M_AXI_ARLOCK	: out std_logic; -- Lock type. Provides additional information about the atomic characteristics of the transfer.
-		M_AXI_ARCACHE	: out std_logic_vector(3 downto 0); -- Memory type. This signal indicates how transactions are required to progress through a system.
-		M_AXI_ARPROT	: out std_logic_vector(2 downto 0); -- Protection type. This signal indicates the privilege and security level of the transaction, and whether the transaction is a data access or an instruction access.
-		M_AXI_ARQOS	: out std_logic_vector(3 downto 0); -- Quality of Service, QoS identifier sent for each read transaction
-		M_AXI_ARUSER	: out std_logic_vector(C_M_AXI_ARUSER_WIDTH-1 downto 0); -- Optional User-defined signal in the read address channel.
-		M_AXI_ARVALID	: out std_logic; -- Write address valid. This signal indicates that the channel is signaling valid read address and control information
-		M_AXI_ARREADY	: in std_logic; -- Read address ready. This signal indicates that the slave is ready to accept an address and associated control signals
-    -- AXI Read Data Channel
-		M_AXI_RID	: in std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0); -- Read ID tag. This signal is the identification tag for the read data group of signals generated by the slave.
-		M_AXI_RDATA	: in std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0); -- Master Read Data
-		M_AXI_RRESP	: in std_logic_vector(1 downto 0); -- Read response. This signal indicates the status of the read transfer
-		M_AXI_RLAST	: in std_logic; -- Read last. This signal indicates the last transfer in a read burst
-		M_AXI_RUSER	: in std_logic_vector(C_M_AXI_RUSER_WIDTH-1 downto 0); -- Optional User-defined signal in the read address channel.
-		M_AXI_RVALID	: in std_logic; -- Read valid. This signal indicates that the channel is signaling the required read data.
-		M_AXI_RREADY	: out std_logic -- Read ready. This signal indicates that the master can accept the read data and response information.
-    );
-end entity_name;
+architecture Behavioral of connector is
 
-architecture implementation of entity_name is
+  -- Type for registers array (32 registers x 32-bit)
+  type regfile_t is array(0 to 31) of std_logic_vector(31 downto 0);
+  signal eyu_reg_file : regfile_t := (others => (others => '0'));
+  -- Ensure x0 is always 0 (we'll handle writes to x0 by ignoring them in logic)
 
-    type ar_state_t is (AR_IDLE, AR_SENT); -- address
-    type r_state_t is (R_IDLE, R_WAIT, R_DONE);  --- read
-    
-    signal ar_state : ar_state_t := AR_IDLE;
-    signal r_state_s : r_state_t := R_IDLE;
-    
-    signal read_inflight : std_logic := '0';
-    signal address_reg : std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0);
-    signal rdata_reg : std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0);
-    
-    signal AXI_SIGNAL_LEN : std_logic_vector(7 downto 0) := (others => '0');
-    signal AXI_SIZE_4B : std_logic_vector(7 downto 0) := "010";
-    signal AXI_BURST_INC : std_logic_vector(7 downto 0) := "01";
-    
-    function to_ascending (eyu : std_logic_vector) return std_logic_vector is
-          variable eyu_res : std_logic_vector(0 to eyu'length -1);
-          variable eyu_k : integer := 0;
-    begin
-          for i in eyu'reverse_range loop 
-               eyu_res(eyu_k) := eyu(i);
-               eyu_k := eyu_k + 1;
-          end loop;
-          return eyu_res;
-    end;
-    
-    
-    
-    
+  -- Program Counter register (use unsigned for easy arithmetic)
+  signal eyu_pc_reg    : unsigned(31 downto 0) := (others => '0');
+  -- Instruction register to hold fetched instruction
+  signal eyu_instr_reg : std_logic_vector(31 downto 0) := (others => '0');
+
+  -- Pipeline latch signals for register operands and immediate
+  signal eyu_regA_val   : std_logic_vector(31 downto 0) := (others => '0');
+  signal eyu_regB_val   : std_logic_vector(31 downto 0) := (others => '0');
+  signal eyu_imm_val    : std_logic_vector(31 downto 0) := (others => '0');
+
+  -- Control flags latched during decode for use in execute
+  signal eyu_opcode_reg : std_logic_vector(6 downto 0) := (others => '0');
+  signal eyu_rd_reg     : integer range 0 to 31 := 0;
+  signal eyu_funct3_reg : std_logic_vector(2 downto 0) := (others => '0');
+  signal eyu_funct7_reg : std_logic_vector(6 downto 0) := (others => '0');
+  signal eyu_is_branch  : std_logic := '0';
+  signal eyu_is_jal     : std_logic := '0';
+  signal eyu_is_jalr    : std_logic := '0';
+  signal eyu_is_load    : std_logic := '0';
+  signal eyu_is_store   : std_logic := '0';
+  signal eyu_illegal_flag : std_logic := '0';  -- internal illegal flag
+
+  -- AXI read channel FSM signals
+  type AR_State_Type is (AR_IDLE, AR_SEND);
+  signal eyu_AR_state : AR_State_Type := AR_IDLE;
+  type R_State_Type is (R_IDLE);
+  signal eyu_R_state  : R_State_Type := R_IDLE;
+  -- Read completion flag, pulses when an instruction word is received
+  signal eyu_read_done  : std_logic := '0';
+  -- Error flag for AXI read response (not strictly needed for functionality)
+  signal eyu_Error      : std_logic := '0';
+
+  -- Sequencer FSM states
+  type Seq_State_Type is (SEQ_INIT, SEQ_FETCH, SEQ_WAIT, SEQ_DECODE, SEQ_EXECUTE);
+  signal eyu_seq_state : Seq_State_Type := SEQ_INIT;
+  -- One-cycle fetch request signal to trigger AR FSM
+  signal eyu_fetch_req : std_logic := '0';
 
 begin
-   
-   -- UNUSED
-    M_AXI_AWID <= (others => '0');
-    M_AXI_AWADDR <= (others => '0');
-    M_AXI_AWLEN <= (others => '0');
-    M_AXI_AWSIZE <= (others => '0');
-    M_AXI_AWBURST <= (others => '0');
-    M_AXI_AWLOCK <= '0';
-    M_AXI_AWCACHE <= (others => '0');
-    M_AXI_AWPROT <= (others => '0');
-    M_AXI_AWQOS <= (others => '0');
-    M_AXI_AWUSER <= (others => '0');
-    M_AXI_AWVALID <= '0';
-    M_AXI_WDATA <= (others => '0');
-    M_AXI_WSTRB <= (others => '0');
-    M_AXI_WLAST <= '0';
-    M_AXI_WUSER <= (others => '0');
-    M_AXI_WVALID <= '0';
-    M_AXI_BREADY <= '0';
-   
-    
-	------------------------------
-	-- Read Address Channel
-	------------------------------
 
-	-- The purpose of the read address channel is to set up the
-	-- address and command information for the entire transaction.  It
-	-- is a single beat of information.
-	
-	M_AXI_ARID <= (others => '0');
-	M_AXI_ARLEN <= AXI_SIGNAL_LEN;
-	M_AXI_ARSIZE <= AXI_SIZE_4B;
-	M_AXI_ARBURST <= AXI_BURST_INC;
-	M_AXI_ARLOCK <= '0';
-	M_AXI_ARCACHE <= (others => '0');
-	M_AXI_ARPROT <= "100";
-	M_AXI_ARQOS <= (others =>'0');
-	M_AXI_ARUSER <= (others => '0');
-	M_AXI_ARADDR <= address_reg;
-	
-	Error <= '1' when (M_AXI_RVALID='1' and M_AXI_RRESP/="00") else '0';
-	Read_done <= '1' when r_state_s=R_Done else '0';
-	
-	Read_Data(o to C_M_AXI_DATA_WIDTH-1) <= to_ascending(rdata_reg);
-  
+  -- Tie off constant AXI signals (burst parameters and such)
+  eyu_M_AXI_ARID    <= (others => '0');
+  eyu_M_AXI_ARLEN   <= x"00";             -- Burst length = 0 => 1 transfer
+  eyu_M_AXI_ARSIZE  <= "010";            -- Burst size = 4 bytes (2^2)
+  eyu_M_AXI_ARBURST <= "01";             -- INCR burst type
+  eyu_M_AXI_ARLOCK  <= '0';
+  eyu_M_AXI_ARCACHE <= "0010";           -- Normal, non-cacheable bufferable
+  eyu_M_AXI_ARPROT  <= "000";
+  eyu_M_AXI_ARQOS   <= "0000";
+  eyu_M_AXI_ARUSER  <= (others => '0');
 
-	----------------------------------
-	--Read Data Channel
-	----------------------------------
+  -- Always ready to accept read data (no throttling)
+  eyu_M_AXI_RREADY <= '1';
 
+  -- Connect outputs to internal signals
+  pc_q       <= std_logic_vector(eyu_pc_reg);
+  regA_q     <= eyu_regA_val;
+  regB_q     <= eyu_regB_val;
+  eyu_illegal <= eyu_illegal_flag;
 
-  
+  -- AR Channel State Machine: handle read address issuance
+  process(eyu_clk) is
+  begin
+    if rising_edge(eyu_clk) then
+      if eyu_reset = '1' then
+        eyu_AR_state       <= AR_IDLE;
+        eyu_M_AXI_ARVALID  <= '0';
+        eyu_M_AXI_ARADDR   <= (others => '0');
+      else
+        case eyu_AR_state is
+          when AR_IDLE =>
+            if eyu_fetch_req = '1' then
+              -- Start a new read transaction: put address on the bus
+              eyu_M_AXI_ARADDR  <= std_logic_vector(eyu_pc_reg);
+              eyu_M_AXI_ARVALID <= '1';
+              eyu_AR_state <= AR_SEND;
+            else
+              eyu_M_AXI_ARVALID <= '0';
+            end if;
+          when AR_SEND =>
+            -- Wait for acknowledgment from memory (ARREADY)
+            if eyu_M_AXI_ARVALID = '1' and eyu_M_AXI_ARREADY = '1' then
+              -- Address handshake completed
+              eyu_M_AXI_ARVALID <= '0';
+              eyu_AR_state <= AR_IDLE;
+            end if;
+        end case;
+      end if;
+    end if;
+  end process;
 
-	----------------------
-	--Write Address Channel
-	----------------------
+  -- R Channel State Machine: handle incoming read data
+  process(eyu_clk) is
+  begin
+    if rising_edge(eyu_clk) then
+      if eyu_reset = '1' then
+        eyu_R_state    <= R_IDLE;
+        eyu_instr_reg  <= (others => '0');
+        eyu_read_done  <= '0';
+        eyu_Error      <= '0';
+      else
+        case eyu_R_state is
+          when R_IDLE =>
+            -- Default no data
+            eyu_read_done <= '0';
+            if eyu_M_AXI_RVALID = '1' then
+              -- Capture instruction word from bus
+              eyu_instr_reg <= eyu_M_AXI_RDATA;
+              -- Check for read errors
+              if eyu_M_AXI_RRESP /= "00" then
+                eyu_Error <= '1';
+              else
+                eyu_Error <= '0';
+              end if;
+              -- We expect single-beat data, so RLAST should be 1 with this transfer
+              -- (Optional assertion for correctness)
+              assert eyu_M_AXI_RLAST = '1' report "AXI read burst longer than 1 beat!" severity warning;
+              -- Signal that a new instruction has been fetched
+              eyu_read_done <= '1';
+              -- Remain in R_IDLE (single data capture done)
+            end if;
+        end case;
+      end if;
+    end if;
+  end process;
 
-	-- The purpose of the write address channel is to request the
-	-- address and command information for the entire transaction.  It
-	-- is a single beat of information.
+  -- Main Sequencer FSM: controls fetch, decode, execute cycle
+  process(eyu_clk) is
+    variable instr      : std_logic_vector(31 downto 0);
+    variable opcode     : std_logic_vector(6 downto 0);
+    variable funct3     : std_logic_vector(2 downto 0);
+    variable funct7     : std_logic_vector(6 downto 0);
+    variable rs1_idx, rs2_idx, rd_idx : integer range 0 to 31;
+    variable imm32     : std_logic_vector(31 downto 0);
+    variable regA_val_v, regB_val_v : std_logic_vector(31 downto 0);
+    variable take_branch : std_logic;
+    variable new_pc     : unsigned(31 downto 0);
+  begin
+    if rising_edge(eyu_clk) then
+      if eyu_reset = '1' then
+        eyu_seq_state    <= SEQ_INIT;
+        eyu_pc_reg       <= (others => '0');
+        eyu_fetch_req    <= '0';
+        -- Initialize register file (x0 = 0 already). Other regs undefined or zero.
+        eyu_reg_file <= (others => (others => '0'));
+        eyu_illegal_flag <= '0';
+      else
+        -- Default fetch request low unless set in states
+        eyu_fetch_req <= '0';
+        case eyu_seq_state is
 
+          when SEQ_INIT =>
+            -- On reset, set PC to 0 (already done) and start first fetch
+            eyu_seq_state <= SEQ_FETCH;
 
+          when SEQ_FETCH =>
+            -- Issue memory read for current PC
+            eyu_fetch_req <= '1';             -- trigger AR FSM to send address
+            eyu_seq_state <= SEQ_WAIT;        -- go wait for data
 
-	----------------------
-	-- Write Data Channel
-	----------------------
+          when SEQ_WAIT =>
+            -- Waiting for instruction fetch to complete
+            if eyu_read_done = '1' then
+              -- Instruction word is now in eyu_instr_reg
+              instr  := eyu_instr_reg;
+              eyu_seq_state <= SEQ_DECODE;
+            end if;
+            -- (Remain in SEQ_WAIT until data arrives)
 
-	-- The write data will continually try to push write data across the
-	-- interface.  The amount of data accepted will depend on the AXI
-	-- slave and the AXI Interconnect settings, such as if there are
-	-- FIFOs enabled in interconnect.  Note that there is no explicit
-	-- timing relationship to the write address channel.  The write
-	-- channel has its own throttling flag, separate from the AW
-	-- channel.  Synchronization between the channels must be determined
-	-- by the user.
+          when SEQ_DECODE =>
+            -- Latch the instruction fields and decode control signals
+            instr   := eyu_instr_reg;
+            opcode  := instr(6 downto 0);
+            rd_idx  := to_integer(unsigned(instr(11 downto 7)));
+            funct3  := instr(14 downto 12);
+            rs1_idx := to_integer(unsigned(instr(19 downto 15)));
+            rs2_idx := to_integer(unsigned(instr(24 downto 20)));
+            funct7  := instr(31 downto 25);
 
-	-- The simpliest but lowest performance would be to only issue one
-	-- address write and write data burst at a time.
+            -- Read register file for source operands (combinational read)
+            regA_val_v := eyu_reg_file(rs1_idx);
+            regB_val_v := eyu_reg_file(rs2_idx);
 
+            -- Default flags
+            eyu_is_branch <= '0';
+            eyu_is_jal    <= '0';
+            eyu_is_jalr   <= '0';
+            eyu_is_load   <= '0';
+            eyu_is_store  <= '0';
+            -- Determine immediate value based on opcode type
+            if opcode = "1100011" then               -- B-type (branch)
+              -- Branch immediate: bits 31,7,30:25,11:8 form imm[12:1] (LSB is 0)
+              -- Assemble 13-bit signed immediate then shift left by 1
+              imm32 := (others => instr(31));       -- fill with sign bit
+              imm32(12 downto 12) := instr(31 downto 31);    -- bit 12 (sign)
+              imm32(10 downto 5)  := instr(30 downto 25);
+              imm32(4 downto 1)   := instr(11 downto 8);
+              imm32(11 downto 11) := instr(7 downto 7);
+              imm32(0) := '0';                      -- LSB is 0 (multiplier of 2)
+              eyu_is_branch <= '1';
+            elsif opcode = "0000011" then           -- I-type load
+              imm32 := (others => instr(31));       -- sign-extend imm[11:0]
+              imm32(11 downto 0) := instr(31 downto 20);
+              eyu_is_load <= '1';
+            elsif opcode = "0100011" then           -- S-type store
+              imm32 := (others => instr(31));
+              imm32(11 downto 5) := instr(31 downto 25);
+              imm32(4 downto 0)  := instr(11 downto 7);
+              eyu_is_store <= '1';
+            elsif opcode = "1101111" then           -- J-type (JAL)
+              -- JAL immediate: bits 31,19:12,20,30:21 form imm[20:1], LSB 0
+              imm32 := (others => instr(31));
+              imm32(19 downto 12) := instr(19 downto 12);
+              imm32(11 downto 11) := instr(20 downto 20);
+              imm32(10 downto 1)  := instr(30 downto 21);
+              imm32(0) := '0';
+              eyu_is_jal <= '1';
+            elsif opcode = "1100111" then           -- JALR (I-type with funct3=000)
+              imm32 := (others => instr(31));
+              imm32(11 downto 0) := instr(31 downto 20);
+              eyu_is_jalr <= '1';
+            elsif opcode = "0010011" then           -- I-type (ALU immediate ops)
+              imm32 := (others => instr(31));
+              imm32(11 downto 0) := instr(31 downto 20);
+              -- (includes ADDI, ORI, ANDI, etc., also SLLI/SRLI/SRAI determined by funct3/funct7)
+            elsif opcode = "0110111" or opcode = "0010111" then  -- U-type (LUI/AUIPC)
+              -- imm20 in bits 31:12, shift left 12 bits
+              imm32 := instr(31 downto 12) & x"000";  -- append 12 zeros
+            else
+              imm32 := (others => '0');
+            end if;
 
-	----------------------
-	--Write Response Channel
-	----------------------
+            -- Set illegal flag if opcode is unknown/unsupported
+            if (opcode /= "0110011") and    -- R-type ALU
+               (opcode /= "0010011") and    -- I-type ALU
+               (opcode /= "0000011") and    -- I-type load (LW, etc.)
+               (opcode /= "0100011") and    -- S-type store
+               (opcode /= "1100011") and    -- B-type branch
+               (opcode /= "0110111") and    -- LUI
+               (opcode /= "0010111") and    -- AUIPC
+               (opcode /= "1101111") and    -- JAL
+               (opcode /= "1100111") then   -- JALR
+              eyu_illegal_flag <= '1';
+            else
+              -- Also flag illegal for unsupported system/fence (opcode 0x73 or 0x0F)
+              if opcode = "1110011" or opcode = "0001111" then
+                eyu_illegal_flag <= '1';
+              else
+                eyu_illegal_flag <= '0';
+              end if;
+            end if;
 
+            -- Latch values into signals for use in EXECUTE stage
+            eyu_regA_val   <= regA_val_v;
+            eyu_regB_val   <= regB_val_v;
+            eyu_imm_val    <= imm32;
+            eyu_opcode_reg <= opcode;
+            eyu_rd_reg     <= rd_idx;
+            eyu_funct3_reg <= funct3;
+            eyu_funct7_reg <= funct7;
+            -- Move to execute stage
+            eyu_seq_state  <= SEQ_EXECUTE;
 
+          when SEQ_EXECUTE =>
+            -- Perform the operation and write back results
+            opcode  := eyu_opcode_reg;
+            funct3  := eyu_funct3_reg;
+            funct7  := eyu_funct7_reg;
+            rs1_idx := to_integer(unsigned(eyu_regA_val(4 downto 0)));  -- not used here
+            rs2_idx := to_integer(unsigned(eyu_regB_val(4 downto 0)));  -- not used here
+            rd_idx  := eyu_rd_reg;
+            imm32   := eyu_imm_val;
+            regA_val_v := eyu_regA_val;
+            regB_val_v := eyu_regB_val;
+            take_branch := '0';
+            new_pc := eyu_pc_reg + 4;  -- default next PC = PC + 4
 
+            -- Default ALU result (for operations that produce a value)
+            -- Use 32-bit unsigned for operations, convert to std_logic_vector for reg write
+            variable alu_result : unsigned(31 downto 0) := (others => '0');
 
-end implementation;
+            -- Execute based on opcode
+            if opcode = "0110011" then              -- R-type ALU
+              case funct3 is
+                when "000" =>  -- ADD or SUB
+                  if funct7 = "0100000" then
+                    -- SUB: x[rd] = x[rs1] - x[rs2]
+                    alu_result := unsigned(regA_val_v) - unsigned(regB_val_v);
+                  else
+                    -- ADD: x[rd] = x[rs1] + x[rs2]
+                    alu_result := unsigned(regA_val_v) + unsigned(regB_val_v);
+                  end if;
+                when "001" =>  -- SLL: shift left logical
+                  alu_result := unsigned(regA_val_v) sll to_integer(unsigned(regB_val_v(4 downto 0)));
+                when "010" =>  -- SLT: set less than (signed)
+                  if signed(regA_val_v) < signed(regB_val_v) then
+                    alu_result := to_unsigned(1, 32);
+                  else
+                    alu_result := (others => '0');
+                  end if;
+                when "011" =>  -- SLTU: set less than (unsigned)
+                  if unsigned(regA_val_v) < unsigned(regB_val_v) then
+                    alu_result := to_unsigned(1, 32);
+                  else
+                    alu_result := (others => '0');
+                  end if;
+                when "100" =>  -- XOR
+                  alu_result := unsigned(regA_val_v) xor unsigned(regB_val_v);
+                when "101" =>  -- SRL or SRA
+                  if funct7 = "0100000" then
+                    -- SRA: arithmetic right shift
+                    alu_result := to_unsigned(
+                                     to_integer(signed(regA_val_v))  -- interpret as signed
+                                     / 2**to_integer(unsigned(regB_val_v(4 downto 0))),
+                                     32);
+                    -- (Using division as a simple way to arithmetic shift right by regB mod32)
+                  else
+                    -- SRL: logical right shift
+                    alu_result := unsigned(regA_val_v) srl to_integer(unsigned(regB_val_v(4 downto 0)));
+                  end if;
+                when "110" =>  -- OR
+                  alu_result := unsigned(regA_val_v) or unsigned(regB_val_v);
+                when "111" =>  -- AND
+                  alu_result := unsigned(regA_val_v) and unsigned(regB_val_v);
+                when others =>
+                  alu_result := (others => '0');
+              end case;
+              -- Write result to register file (except x0)
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+
+            elsif opcode = "0010011" then          -- I-type ALU (immediate)
+              case funct3 is
+                when "000" =>  -- ADDI
+                  alu_result := unsigned(regA_val_v) + unsigned(imm32);
+                when "010" =>  -- SLTI (signed compare)
+                  if signed(regA_val_v) < signed(imm32) then
+                    alu_result := to_unsigned(1, 32);
+                  else
+                    alu_result := (others => '0');
+                  end if;
+                when "011" =>  -- SLTIU (unsigned compare)
+                  if unsigned(regA_val_v) < unsigned(imm32) then
+                    alu_result := to_unsigned(1, 32);
+                  else
+                    alu_result := (others => '0');
+                  end if;
+                when "100" =>  -- XORI
+                  alu_result := unsigned(regA_val_v) xor unsigned(imm32);
+                when "110" =>  -- ORI
+                  alu_result := unsigned(regA_val_v) or unsigned(imm32);
+                when "111" =>  -- ANDI
+                  alu_result := unsigned(regA_val_v) and unsigned(imm32);
+                when "001" =>  -- SLLI
+                  alu_result := unsigned(regA_val_v) sll to_integer(unsigned(imm32(4 downto 0)));
+                when "101" =>  -- SRLI or SRAI
+                  if imm32(10 downto 0) = x"400" then  -- imm[11:5] = 0x20 indicates SRAI
+                    alu_result := to_unsigned(
+                                     to_integer(signed(regA_val_v)) / 2**to_integer(unsigned(imm32(4 downto 0))),
+                                     32);
+                  else
+                    alu_result := unsigned(regA_val_v) srl to_integer(unsigned(imm32(4 downto 0)));
+                  end if;
+                when others =>
+                  alu_result := (others => '0');
+              end case;
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+
+            elsif opcode = "0110111" then          -- LUI: Load Upper Immediate
+              alu_result := unsigned(imm32);  -- imm32 already shifted left 12
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+
+            elsif opcode = "0010111" then          -- AUIPC: PC + upper immediate
+              alu_result := eyu_pc_reg + unsigned(imm32);
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+
+            elsif opcode = "1101111" then          -- JAL
+              -- Compute return address (PC + 4) and target (PC + offset)
+              alu_result := eyu_pc_reg + 4u;  -- return address
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+              -- Set up branch to PC + imm offset
+              new_pc := eyu_pc_reg + unsigned(imm32);
+              take_branch := '1';
+
+            elsif opcode = "1100111" then          -- JALR
+              alu_result := eyu_pc_reg + 4u;
+              if rd_idx /= 0 then
+                eyu_reg_file(rd_idx) <= std_logic_vector(alu_result);
+              end if;
+              eyu_alu_y <= std_logic_vector(alu_result);
+              -- Target = (rs1 + imm) & ~1
+              new_pc := unsigned(regA_val_v) + unsigned(imm32);
+              new_pc(0) := '0';  -- clear LSB
+              take_branch := '1';
+
+            elsif opcode = "1100011" then          -- Branches
+              -- Evaluate branch condition using regA_val and regB_val
+              case funct3 is
+                when "000" =>  -- BEQ
+                  if regA_val_v = regB_val_v then take_branch := '1'; end if;
+                when "001" =>  -- BNE
+                  if regA_val_v /= regB_val_v then take_branch := '1'; end if;
+                when "100" =>  -- BLT (signed)
+                  if signed(regA_val_v) < signed(regB_val_v) then take_branch := '1'; end if;
+                when "101" =>  -- BGE (signed)
+                  if signed(regA_val_v) >= signed(regB_val_v) then take_branch := '1'; end if;
+                when "110" =>  -- BLTU (unsigned)
+                  if unsigned(regA_val_v) < unsigned(regB_val_v) then take_branch := '1'; end if;
+                when "111" =>  -- BGEU (unsigned)
+                  if unsigned(regA_val_v) >= unsigned(regB_val_v) then take_branch := '1'; end if;
+                when others =>
+                  take_branch := '0';
+              end case;
+              if take_branch = '1' then
+                new_pc := eyu_pc_reg + unsigned(imm32);
+              end if;
+              -- (No register write for branches, eyu_alu_y can be left as last ALU value)
+
+            elsif opcode = "0000011" then          -- Load (e.g., LW)
+              -- Load address calculation (base + imm)
+              -- (In Lab3, we won't perform memory load; just ensure illegal_flag is 0 for this opcode)
+              alu_result := unsigned(regA_val_v) + unsigned(imm32);
+              -- Normally would trigger load unit; here we do nothing except maybe record address in alu_y
+              eyu_alu_y <= std_logic_vector(alu_result);
+              -- (No reg write in this stage for loads, it would happen when data returns in a real LSU)
+
+            elsif opcode = "0100011" then          -- Store (e.g., SW)
+              -- Store address calc (base + imm)
+              alu_result := unsigned(regA_val_v) + unsigned(imm32);
+              eyu_alu_y <= std_logic_vector(alu_result);
+              -- (No register write; would normally send data from regB_val to memory)
+
+            else
+              -- Other opcodes (including system/fence) are treated as illegal (already flagged)
+              eyu_alu_y <= (others => '0');
+            end if;
+
+            -- Update Program Counter for next instruction
+            if take_branch = '1' then
+              eyu_pc_reg <= new_pc;
+            else
+              eyu_pc_reg <= new_pc;
+            end if;
+
+            -- Move back to fetch next instruction
+            eyu_seq_state <= SEQ_FETCH;
+        end case;
+      end if;
+    end if;
+  end process;
+
+end Behavioral;
