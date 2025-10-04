@@ -2,16 +2,31 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity connector is
-  Port (
-    -- Clock and reset
-    eyu_clk   : in  std_logic;
-    eyu_reset : in  std_logic;
-    -- AXI4 instruction memory interface
-    M_AXI_ACLK    : out std_logic;
-    M_AXI_ARESETN : out std_logic;
-    M_AXI_ARID    : out std_logic_vector(0 downto 0);
-    M_AXI_ARADDR  : out std_logic_vector(31 downto 0);
+entity AXI_Bus_Manager_Example is
+  generic (
+    C_M_AXI_ID_WIDTH    : integer := 1;
+    C_M_AXI_ADDR_WIDTH  : integer := 32;
+    C_M_AXI_DATA_WIDTH  : integer := 32;
+    C_M_AXI_ARUSER_WIDTH: integer := 0;
+    C_M_AXI_RUSER_WIDTH : integer := 0;
+    C_M_AXI_AWUSER_WIDTH: integer := 0;
+    C_M_AXI_WUSER_WIDTH : integer := 0;
+    C_M_AXI_BUSER_WIDTH : integer := 0;
+    C_M_AXI_BURST_LEN   : integer := 1  -- number of beats per burst (1 for single-beat)
+  );
+  port (
+    -- Control signals for fetch unit
+    Start_read    : in  std_logic;                                             -- Trigger to start a read transaction
+    Read_address  : in  std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0);       -- Address to fetch from (e.g., current PC)
+    Read_Done     : out std_logic;                                            -- Flag: Read transaction completed
+    Read_Data     : out std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0);       -- Data word fetched from memory
+    Error         : out std_logic;                                            -- Flag: Error occurred during fetch (AXI RRESP not OKAY)
+    -- AXI4 Master Interface signals (Instruction memory bus)
+    M_AXI_ACLK    : in  std_logic;
+    M_AXI_ARESETN : in  std_logic;
+    -- Read address channel (AR)
+    M_AXI_ARID    : out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
+    M_AXI_ARADDR  : out std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0);
     M_AXI_ARLEN   : out std_logic_vector(7 downto 0);
     M_AXI_ARSIZE  : out std_logic_vector(2 downto 0);
     M_AXI_ARBURST : out std_logic_vector(1 downto 0);
@@ -19,19 +34,20 @@ entity connector is
     M_AXI_ARCACHE : out std_logic_vector(3 downto 0);
     M_AXI_ARPROT  : out std_logic_vector(2 downto 0);
     M_AXI_ARQOS   : out std_logic_vector(3 downto 0);
-    M_AXI_ARUSER  : out std_logic_vector(0 downto 0);
+    M_AXI_ARUSER  : out std_logic_vector(0 downto 0);  -- User signal (not used, 1-bit tie-off)
     M_AXI_ARVALID : out std_logic;
     M_AXI_ARREADY : in  std_logic;
-    M_AXI_RID     : in  std_logic_vector(0 downto 0);
-    M_AXI_RDATA   : in  std_logic_vector(31 downto 0);
+    -- Read data channel (R)
+    M_AXI_RID     : in  std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
+    M_AXI_RDATA   : in  std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0);
     M_AXI_RRESP   : in  std_logic_vector(1 downto 0);
     M_AXI_RLAST   : in  std_logic;
-    M_AXI_RUSER   : in  std_logic_vector(0 downto 0);
+    M_AXI_RUSER   : in  std_logic_vector(0 downto 0);  -- User signal (not used, 1-bit)
     M_AXI_RVALID  : in  std_logic;
     M_AXI_RREADY  : out std_logic;
-    -- Unused AXI Write channel signals (not used in Lab 3, but present for completeness)
-    M_AXI_AWID    : out std_logic_vector(0 downto 0);
-    M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
+    -- Write address channel (AW) - not used in Lab 3 (tie-offs)
+    M_AXI_AWID    : out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
+    M_AXI_AWADDR  : out std_logic_vector(C_M_AXI_ADDR_WIDTH-1 downto 0);
     M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
     M_AXI_AWSIZE  : out std_logic_vector(2 downto 0);
     M_AXI_AWBURST : out std_logic_vector(1 downto 0);
@@ -39,259 +55,170 @@ entity connector is
     M_AXI_AWCACHE : out std_logic_vector(3 downto 0);
     M_AXI_AWPROT  : out std_logic_vector(2 downto 0);
     M_AXI_AWQOS   : out std_logic_vector(3 downto 0);
-    M_AXI_AWUSER  : out std_logic_vector(0 downto 0);
+    M_AXI_AWUSER  : out std_logic_vector(0 downto 0);  -- User signal (not used)
     M_AXI_AWVALID : out std_logic;
     M_AXI_AWREADY : in  std_logic;
-    M_AXI_WDATA   : out std_logic_vector(31 downto 0);
-    M_AXI_WSTRB   : out std_logic_vector(3 downto 0);
+    -- Write data channel (W) - not used
+    M_AXI_WDATA   : out std_logic_vector(C_M_AXI_DATA_WIDTH-1 downto 0);
+    M_AXI_WSTRB   : out std_logic_vector((C_M_AXI_DATA_WIDTH/8)-1 downto 0);
     M_AXI_WLAST   : out std_logic;
-    M_AXI_WUSER   : out std_logic_vector(0 downto 0);
+    M_AXI_WUSER   : out std_logic_vector(0 downto 0);  -- User signal (not used)
     M_AXI_WVALID  : out std_logic;
     M_AXI_WREADY  : in  std_logic;
-    M_AXI_BID     : in  std_logic_vector(0 downto 0);
+    -- Write response channel (B) - not used
+    M_AXI_BID     : in  std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
     M_AXI_BRESP   : in  std_logic_vector(1 downto 0);
-    M_AXI_BUSER   : in  std_logic_vector(0 downto 0);
+    M_AXI_BUSER   : in  std_logic_vector(0 downto 0);  -- User signal (not used)
     M_AXI_BVALID  : in  std_logic;
-    M_AXI_BREADY  : out std_logic;
-    -- Debug/observability outputs
-    eyu_pc_q    : out std_logic_vector(31 downto 0);  -- Program Counter current value
-    eyu_alu_y   : out std_logic_vector(31 downto 0);  -- ALU result output (from datapath)
-    eyu_regA_q  : out std_logic_vector(31 downto 0);  -- Register file A-port output (for monitoring)
-    eyu_regB_q  : out std_logic_vector(31 downto 0)   -- Register file B-port output (for monitoring)
+    M_AXI_BREADY  : out std_logic
   );
-end connector;
+end AXI_Bus_Manager_Example;
 
-architecture Behavioral of connector is
+architecture Behavioral of AXI_Bus_Manager_Example is
 
-  -- Declare types for Sequencer FSM states
-  type state_type is (FETCH, WAIT, EXECUTE);
-  signal eyu_state, eyu_next_state : state_type;
-
-  -- Signals connecting fetch_unit
-  signal eyu_start_read   : std_logic := '0';
-  signal eyu_fetch_done   : std_logic;
-  signal eyu_fetch_data   : std_logic_vector(0 to 31);
-  signal eyu_fetch_error  : std_logic;
-
-  -- Signals for connecting PC, Decoder, and Datapath
-  signal PCle_s    : std_logic;
-  signal PCie_s    : std_logic;
-  signal isBR_s    : std_logic;
-  signal BRcond_s  : std_logic_vector(2 downto 0);
-  signal PCle_to_PC       : std_logic;
-  signal PCie_to_PC       : std_logic;
-  signal Branch_taken_to_PC : std_logic;
-  signal alu_result_s     : std_logic_vector(31 downto 0);
-
-  signal Asel_s    : std_logic_vector(4 downto 0);
-  signal Bsel_s    : std_logic_vector(4 downto 0);
-  signal Dsel_s    : std_logic_vector(4 downto 0);
-  signal Dlen_s    : std_logic;
-  signal PCAsel_s  : std_logic;
-  signal IMMBsel_s : std_logic;
-  signal PCDsel_s  : std_logic;
-  signal ALUFunc_s : std_logic_vector(3 downto 0);
-  signal IMM_s     : std_logic_vector(31 downto 0);
-
-  signal branch_q   : std_logic;  -- output from branch unit (in datapath) indicating branch taken
-  signal instruction_s : std_logic_vector(31 downto 0);  -- instruction fetched (to feed decoder)
+  -- Define state types for the read address and read data channel FSMs
+  type AR_State_Type is (AR_IDLE, AR_SEND_ADDR);
+  type R_State_Type  is (R_IDLE, R_WAIT_DATA, R_DONE);
+  signal eyu_ar_state  : AR_State_Type := AR_IDLE;
+  signal eyu_r_state   : R_State_Type  := R_IDLE;
 
 begin
+  --------------------------------------------------------------------
+  -- Default assignments for constant AXI control signals (tie-offs)
+  --------------------------------------------------------------------
+  -- Read Address channel static signals
+  M_AXI_ARID    <= (others => '0');       -- Single ID thread = 0:contentReference[oaicite:13]{index=13}
+  M_AXI_ARLEN   <= (others => '0');       -- Burst length = 0 (single beat):contentReference[oaicite:14]{index=14}
+  M_AXI_ARSIZE  <= "010";                 -- 4 bytes per beat (32-bit word)
+  M_AXI_ARBURST <= "01";                  -- INCR burst type (incrementing address)
+  M_AXI_ARLOCK  <= '0';                   -- No lock
+  M_AXI_ARCACHE <= "0011";                -- Normal, non-cacheable, bufferable :contentReference[oaicite:15]{index=15}
+  M_AXI_ARPROT  <= "000";                 -- Unprivileged, secure, data access :contentReference[oaicite:16]{index=16}
+  M_AXI_ARQOS   <= (others => '0');       -- Not using QoS, tie to 0
+  M_AXI_ARUSER  <= (others => '0');       -- Not used user signal
 
-  -- Connect system clock and reset to AXI interface signals for fetch_unit
-  M_AXI_ACLK    <= eyu_clk;
-  M_AXI_ARESETN <= not eyu_reset;  -- Convert active-high reset to active-low for AXI bus
+  -- Write channels (AW, W, B) static signals (not used in fetch, tie-offs)
+  M_AXI_AWID    <= (others => '0');
+  M_AXI_AWADDR  <= (others => '0');
+  M_AXI_AWLEN   <= (others => '0');
+  M_AXI_AWSIZE  <= "010";        -- (assuming 32-bit writes if used, tie to 4 bytes)
+  M_AXI_AWBURST <= "01";
+  M_AXI_AWLOCK  <= '0';
+  M_AXI_AWCACHE <= "0011";
+  M_AXI_AWPROT  <= "000";
+  M_AXI_AWQOS   <= (others => '0');
+  M_AXI_AWUSER  <= (others => '0');
+  M_AXI_AWVALID <= '0';          -- never initiate writes in this unit
+  M_AXI_WDATA   <= (others => '0');
+  M_AXI_WSTRB   <= (others => '0');
+  M_AXI_WLAST   <= '0';
+  M_AXI_WUSER   <= (others => '0');
+  M_AXI_WVALID  <= '0';
+  M_AXI_BREADY  <= '0';          -- not expecting any write responses
 
-  -- Gating logic: Only allow PC to update when in EXECUTE stage
-  PCie_to_PC       <= PCie_s when (eyu_state = EXECUTE) else '0';
-  PCle_to_PC       <= PCle_s when (eyu_state = EXECUTE) else '0';
-  Branch_taken_to_PC <= branch_q when (eyu_state = EXECUTE) else '0';
-
-  -- ** Instruction Fetch Unit Instantiation **
-  U_FETCH: entity work.fetch_unit
-    generic map (
-      C_M_AXI_ID_WIDTH    => 1,
-      C_M_AXI_ADDR_WIDTH  => 32,
-      C_M_AXI_DATA_WIDTH  => 32,
-      C_M_AXI_ARUSER_WIDTH => 0,
-      C_M_AXI_RUSER_WIDTH  => 0,
-      C_M_AXI_AWUSER_WIDTH => 0,
-      C_M_AXI_WUSER_WIDTH  => 0,
-      C_M_AXI_BUSER_WIDTH  => 0,
-      C_M_AXI_BURST_LEN   => 1
-    )
-    port map (
-      Start_read   => eyu_start_read,
-      Read_address => eyu_pc_q,       -- fetch from current PC address
-      Read_Done    => eyu_fetch_done,
-      Read_Data    => eyu_fetch_data,
-      Error        => eyu_fetch_error,
-      M_AXI_ACLK   => eyu_clk,
-      M_AXI_ARESETN=> not eyu_reset,
-      -- AXI4 read channels (connect to top-level AXI signals)
-      M_AXI_ARID    => M_AXI_ARID,
-      M_AXI_ARADDR  => M_AXI_ARADDR,
-      M_AXI_ARLEN   => M_AXI_ARLEN,
-      M_AXI_ARSIZE  => M_AXI_ARSIZE,
-      M_AXI_ARBURST => M_AXI_ARBURST,
-      M_AXI_ARLOCK  => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE,
-      M_AXI_ARPROT  => M_AXI_ARPROT,
-      M_AXI_ARQOS   => M_AXI_ARQOS,
-      M_AXI_ARUSER  => M_AXI_ARUSER,
-      M_AXI_ARVALID => M_AXI_ARVALID,
-      M_AXI_ARREADY => M_AXI_ARREADY,
-      M_AXI_RID     => M_AXI_RID,
-      M_AXI_RDATA   => M_AXI_RDATA,
-      M_AXI_RRESP   => M_AXI_RRESP,
-      M_AXI_RLAST   => M_AXI_RLAST,
-      M_AXI_RUSER   => M_AXI_RUSER,
-      M_AXI_RVALID  => M_AXI_RVALID,
-      M_AXI_RREADY  => M_AXI_RREADY,
-      -- AXI4 write channels (not used, tie off to top-level signals)
-      M_AXI_AWID    => M_AXI_AWID,
-      M_AXI_AWADDR  => M_AXI_AWADDR,
-      M_AXI_AWLEN   => M_AXI_AWLEN,
-      M_AXI_AWSIZE  => M_AXI_AWSIZE,
-      M_AXI_AWBURST => M_AXI_AWBURST,
-      M_AXI_AWLOCK  => M_AXI_AWLOCK,
-      M_AXI_AWCACHE => M_AXI_AWCACHE,
-      M_AXI_AWPROT  => M_AXI_AWPROT,
-      M_AXI_AWQOS   => M_AXI_AWQOS,
-      M_AXI_AWUSER  => M_AXI_AWUSER,
-      M_AXI_AWVALID => M_AXI_AWVALID,
-      M_AXI_AWREADY => M_AXI_AWREADY,
-      M_AXI_WDATA   => M_AXI_WDATA,
-      M_AXI_WSTRB   => M_AXI_WSTRB,
-      M_AXI_WLAST   => M_AXI_WLAST,
-      M_AXI_WUSER   => M_AXI_WUSER,
-      M_AXI_WVALID  => M_AXI_WVALID,
-      M_AXI_WREADY  => M_AXI_WREADY,
-      M_AXI_BID     => M_AXI_BID,
-      M_AXI_BRESP   => M_AXI_BRESP,
-      M_AXI_BUSER   => M_AXI_BUSER,
-      M_AXI_BVALID  => M_AXI_BVALID,
-      M_AXI_BREADY  => M_AXI_BREADY
-    );
-
-  -- Map fetch output data (0 to 31) to internal 31 downto 0 instruction signal
-  gen_data_map: for idx in 0 to 31 generate
-    instruction_s(idx) <= eyu_fetch_data(idx);
-  end generate gen_data_map;
-
-  -- ** Instruction Decoder Instantiation **
-  U_DECODER: entity work.DECODER
-    port map (
-      instr    => instruction_s,   -- 32-bit instruction input
-      Asel     => Asel_s,
-      Bsel     => Bsel_s,
-      Dsel     => Dsel_s,
-      Dlen     => Dlen_s,
-      PCAsel   => PCAsel_s,
-      IMMBsel  => IMMBsel_s,
-      PCDsel   => PCDsel_s,
-      PCie     => PCie_s,
-      PCle     => PCle_s,
-      isBr     => isBR_s,
-      BRcond   => BRcond_s,
-      ALUFunc  => ALUFunc_s,
-      IMM      => IMM_s
-    );
-    -- Note: The decoder combinatorially decodes the instruction into control signals.
-    -- It provides PCie (increment enable) and PCle (PC load enable for jumps) outputs, 
-    -- as well as 'isBr' and 'BRcond' for branch instructions, and the immediate value IMM.
-
-  -- ** Datapath (ALU, RegFile, Branch unit) Instantiation **
-  U_DATAPATH: entity work.data_path
-    port map (
-      clk      => eyu_clk,
-      reset    => eyu_reset,
-      -- Control signals from decoder
-      Asel     => Asel_s,
-      Bsel     => Bsel_s,
-      Dsel     => Dsel_s,
-      Dlen     => Dlen_s,
-      PCAsel   => PCAsel_s,
-      IMMBsel  => IMMBsel_s,
-      PCDsel   => PCDsel_s,
-      PCie     => PCie_s,    -- Note: PC increment enable is still output to datapath (may control PC+4 selection internally)
-      isBR     => isBR_s,
-      BRcond   => BRcond_s,
-      ALUFunc  => ALUFunc_s,
-      IMM      => IMM_s,
-      -- Program Counter input (current PC value)
-      PC_q     => eyu_pc_q,
-      -- Outputs
-      alu_y    => alu_result_s,   -- ALU result (to PC and for writing to reg file if needed)
-      branch_q => branch_q,       -- Branch decision output (1 if branch taken)
-      regA_q   => eyu_regA_q,     -- Register A output value for debugging
-      regB_q   => eyu_regB_q      -- Register B output value for debugging
-    );
-
-  -- Connect ALU result and PC gating signals
-  eyu_alu_y <= alu_result_s;  -- expose ALU output to top-level (for observation)
-  
-  -- ** Program Counter Instantiation **
-  U_PC: entity work.PC
-    port map (
-      clk        => eyu_clk,
-      reset      => eyu_reset,
-      PCle       => PCle_to_PC,          -- gated PC load enable
-      PCie       => PCie_to_PC,          -- gated PC increment enable
-      Branch_out => Branch_taken_to_PC,  -- gated branch-taken signal
-      ALUout     => alu_result_s,        -- ALU result used for PC new value on jumps/branches
-      eyu_out    => eyu_pc_q             -- Program Counter current value output (PC_q)
-    );
-
-  ---------------------------------------------------------------------
-  -- Sequencer FSM: controls instruction fetch, wait, and execute phases
-  ---------------------------------------------------------------------
-  SequencerFSM: process(eyu_clk, eyu_reset)
+  --------------------------------------------------------------------
+  -- Read Address Channel FSM: handles AR handshaking 
+  --------------------------------------------------------------------
+  AR_FSM_Process: process(M_AXI_ACLK) is
   begin
-    if eyu_reset = '1' then
-      -- Synchronous reset: initialize state and control signals
-      eyu_state <= FETCH;
-      eyu_start_read <= '0';
-    elsif rising_edge(eyu_clk) then
-      -- State register update
-      eyu_state <= eyu_next_state;
-      -- Default control outputs
-      case eyu_state is
-        when FETCH =>
-          -- In FETCH state, trigger a memory read and then transition to WAIT
-          eyu_start_read <= '1';
-        when WAIT =>
-          -- After initiating fetch, deassert Start_read and wait for completion
-          eyu_start_read <= '0';
-        when EXECUTE =>
-          eyu_start_read <= '0';
-        when others =>
-          eyu_start_read <= '0';
-      end case;
+    if rising_edge(M_AXI_ACLK) then
+      if (M_AXI_ARESETN = '0') then   -- Active-low reset check
+        -- Reset state: clear AR signal outputs
+        eyu_ar_state   <= AR_IDLE;
+        M_AXI_ARVALID <= '0';
+        M_AXI_ARADDR  <= (others => '0');
+      else
+        case eyu_ar_state is
+          when AR_IDLE =>
+            -- Wait for a start of read request
+            if (Start_read = '1') then
+              -- Latch address and start the read transaction
+              M_AXI_ARADDR  <= Read_address;
+              M_AXI_ARVALID <= '1';   -- assert ARVALID to initiate handshake
+              eyu_ar_state  <= AR_SEND_ADDR;
+            end if;
+
+          when AR_SEND_ADDR =>
+            -- Address phase in progress: wait for slave to accept the address
+            if (M_AXI_ARVALID = '1' and M_AXI_ARREADY = '1') then
+              -- Handshake complete: address accepted
+              M_AXI_ARVALID <= '0';   -- deassert ARVALID (one-shot request)
+              -- Note: ARADDR and control signals remain stable throughout handshake
+              eyu_ar_state  <= AR_IDLE;
+            end if;
+
+          when others =>
+            eyu_ar_state <= AR_IDLE;
+        end case;
+      end if;
     end if;
-  end process SequencerFSM;
+  end process AR_FSM_Process;
 
-  -- Next-state logic for Sequencer FSM (combinational)
-  NextStateLogic: process(eyu_state, eyu_fetch_done, eyu_fetch_error)
+  --------------------------------------------------------------------
+  -- Read Data Channel FSM: handles R data reception and completion
+  --------------------------------------------------------------------
+  R_FSM_Process: process(M_AXI_ACLK) is
   begin
-    eyu_next_state <= eyu_state;  -- default stay in same state
-    case eyu_state is
-      when FETCH =>
-        -- After initiating fetch, immediately go to WAIT state to await data
-        eyu_next_state <= WAIT;
-      when WAIT =>
-        -- Stay in WAIT until instruction fetch is done (or error)
-        if eyu_fetch_done = '1' or eyu_fetch_error = '1' then
-          eyu_next_state <= EXECUTE;
-        else
-          eyu_next_state <= WAIT;
-        end if;
-      when EXECUTE =>
-        -- After one execute cycle, proceed to fetch the next instruction
-        eyu_next_state <= FETCH;
-      when others =>
-        eyu_next_state <= FETCH;
-    end case;
-  end process NextStateLogic;
+    if rising_edge(M_AXI_ACLK) then
+      if (M_AXI_ARESETN = '0') then   -- Synchronous reset for R-channel
+        eyu_r_state   <= R_IDLE;
+        M_AXI_RREADY <= '0';
+        Read_Done    <= '0';
+        Error        <= '0';
+        Read_Data    <= (others => '0');
+      else
+        case eyu_r_state is
+          when R_IDLE =>
+            -- Idle: no pending read. Set RREADY low, clear flags.
+            M_AXI_RREADY <= '0';
+            Read_Done    <= '0';
+            Error        <= '0';
+            -- Transition to wait state on Start_read (transaction initiated)
+            if (Start_read = '1') then
+              M_AXI_RREADY <= '1';    -- be ready to accept read data
+              -- Clear output flags for new transaction
+              Read_Done    <= '0';
+              Error        <= '0';
+              eyu_r_state  <= R_WAIT_DATA;
+            end if;
+
+          when R_WAIT_DATA =>
+            -- Waiting for data from the slave
+            if (M_AXI_RVALID = '1') then
+              -- A data beat is available on the bus
+              Read_Data <= M_AXI_RDATA;   -- capture the returned data word
+              -- Check for any error response
+              if (M_AXI_RRESP = "00") then
+                Error <= '0';            -- OKAY response (no error)
+              else
+                Error <= '1';            -- SLVERR/DECERR, flag an error
+              end if;
+              -- For single-beat transfer, RLAST should be 1 with this data
+              if (M_AXI_RLAST = '1') then
+                -- Last (and only) beat of the burst received
+                Read_Done    <= '1';     -- signal completion of read
+                M_AXI_RREADY <= '0';     -- not ready for more (end of burst)
+                eyu_r_state  <= R_DONE;  -- go to done state to finalize
+              end if;
+              -- (If multi-beat bursts were used, we would remain in R_WAIT_DATA 
+              -- until RLAST is encountered, collecting data as needed)
+            end if;
+
+          when R_DONE =>
+            -- One cycle done state: hold Read_Done (and Error) high, then clear
+            Read_Done   <= '1';   -- (remains asserted for this extra cycle)
+            -- Error stays asserted if it was set (no need to reassign here)
+            -- Transition back to idle on next cycle, clear flags
+            eyu_r_state <= R_IDLE;
+            Read_Done   <= '0';
+            Error       <= '0';
+            -- Note: Read_Data can retain the last fetched value until next use
+          
+          when others =>
+            eyu_r_state <= R_IDLE;
+        end case;
+      end if;
+    end if;
+  end process R_FSM_Process;
 
 end Behavioral;
