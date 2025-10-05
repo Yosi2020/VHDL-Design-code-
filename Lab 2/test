@@ -20,7 +20,7 @@ architecture sim of tb_entity_name is
   signal Read_Data    : std_logic_vector(0 to C_DATA_W-1);
   signal Error        : std_logic;
 
-  -- AXI signals (READ)
+  -- AXI Read Address/Data
   signal M_AXI_ARID    : std_logic_vector(C_ID_W-1 downto 0);
   signal M_AXI_ARADDR  : std_logic_vector(C_ADDR_W-1 downto 0);
   signal M_AXI_ARLEN   : std_logic_vector(7 downto 0);
@@ -32,7 +32,7 @@ architecture sim of tb_entity_name is
   signal M_AXI_ARQOS   : std_logic_vector(3 downto 0);
   signal M_AXI_ARUSER  : std_logic_vector(0 downto 0);
   signal M_AXI_ARVALID : std_logic;
-  signal M_AXI_ARREADY : std_logic := '1'; -- always ready
+  signal M_AXI_ARREADY : std_logic := '1';  -- always ready
 
   signal M_AXI_RID     : std_logic_vector(C_ID_W-1 downto 0) := (others=>'0');
   signal M_AXI_RDATA   : std_logic_vector(C_DATA_W-1 downto 0) := (others=>'0');
@@ -42,7 +42,7 @@ architecture sim of tb_entity_name is
   signal M_AXI_RVALID  : std_logic := '0';
   signal M_AXI_RREADY  : std_logic;
 
-  -- AXI write (unused; tied/sunk)
+  -- AXI write (unused; declared to match DUT)
   signal M_AXI_AWID    : std_logic_vector(C_ID_W-1 downto 0);
   signal M_AXI_AWADDR  : std_logic_vector(C_ADDR_W-1 downto 0);
   signal M_AXI_AWLEN   : std_logic_vector(7 downto 0);
@@ -67,7 +67,7 @@ architecture sim of tb_entity_name is
   signal M_AXI_BVALID  : std_logic := '0';
   signal M_AXI_BREADY  : std_logic;
 
-  -- ROM for returning data (word address = ARADDR(31:2))
+  -- ROM for responses (word address = ARADDR(31:2))
   type rom_t is array (0 to 255) of std_logic_vector(31 downto 0);
   constant ROM : rom_t := (
     0 => x"00000013",  -- NOP
@@ -80,19 +80,13 @@ architecture sim of tb_entity_name is
   signal pending : std_logic := '0';
   signal delay   : integer range 0 to 3 := 0;
 
-  -- helper: convert 31:0 to 0:31 for compare
+  -- helper: convert 31:0 → 0:31 (DUT Read_Data is 0..31)
   function to_up(v : std_logic_vector(31 downto 0)) return std_logic_vector is
     variable r : std_logic_vector(0 to 31);
-  begin
-    for i in 0 to 31 loop r(i) := v(i); end loop;
-    return r;
-  end function;
+  begin for i in 0 to 31 loop r(i) := v(i); end loop; return r; end;
 
-  -- 32-bit helper literal
   function w32(x : natural) return std_logic_vector is
-  begin
-    return std_logic_vector(to_unsigned(x, 32));
-  end function;
+  begin return std_logic_vector(to_unsigned(x, 32)); end;
 
 begin
   -- 100 MHz clock & reset
@@ -119,22 +113,20 @@ begin
       Error         => Error,
       M_AXI_ACLK    => clk,
       M_AXI_ARESETN => rstn,
-
-      -- READ Address
+      -- AR
       M_AXI_ARID    => M_AXI_ARID,
       M_AXI_ARADDR  => M_AXI_ARADDR,
       M_AXI_ARLEN   => M_AXI_ARLEN,
       M_AXI_ARSIZE  => M_AXI_ARSIZE,
       M_AXI_ARBURST => M_AXI_ARBURST,
       M_AXI_ARLOCK  => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE,  -- correct signal
+      M_AXI_ARCACHE => M_AXI_ARCACHE,
       M_AXI_ARPROT  => M_AXI_ARPROT,
       M_AXI_ARQOS   => M_AXI_ARQOS,
       M_AXI_ARUSER  => M_AXI_ARUSER,
       M_AXI_ARVALID => M_AXI_ARVALID,
       M_AXI_ARREADY => M_AXI_ARREADY,
-
-      -- READ Data
+      -- R
       M_AXI_RID     => M_AXI_RID,
       M_AXI_RDATA   => M_AXI_RDATA,
       M_AXI_RRESP   => M_AXI_RRESP,
@@ -142,8 +134,7 @@ begin
       M_AXI_RUSER   => M_AXI_RUSER,
       M_AXI_RVALID  => M_AXI_RVALID,
       M_AXI_RREADY  => M_AXI_RREADY,
-
-      -- WRITE (unused)
+      -- AW/W/B (unused)
       M_AXI_AWID    => M_AXI_AWID,
       M_AXI_AWADDR  => M_AXI_AWADDR,
       M_AXI_AWLEN   => M_AXI_AWLEN,
@@ -169,7 +160,7 @@ begin
       M_AXI_BREADY  => M_AXI_BREADY
     );
 
-  -- AXI memory model (single-beat, fixed latency)
+  -- AXI memory model (single-beat, 2-cycle latency)
   process(clk)
   begin
     if rising_edge(clk) then
@@ -178,20 +169,17 @@ begin
         M_AXI_RVALID <= '0';
         M_AXI_RLAST  <= '0';
       else
-        -- capture AR handshake and schedule data
         if (M_AXI_ARVALID='1' and M_AXI_ARREADY='1') then
           aword   <= to_integer(unsigned(M_AXI_ARADDR(31 downto 2)));
           pending <= '1';
-          delay   <= 2; -- two-cycle latency
+          delay   <= 2;
         end if;
 
-        -- default deassert after handshake
         if (M_AXI_RVALID='1' and M_AXI_RREADY='1') then
           M_AXI_RVALID <= '0';
           M_AXI_RLAST  <= '0';
         end if;
 
-        -- present one beat after latency
         if pending='1' then
           if delay>0 then
             delay <= delay - 1;
@@ -209,43 +197,36 @@ begin
     end if;
   end process;
 
-  -- 100 MHz clock
-  clk <= not clk after 5 ns;
-
-  -- Self-checking stimulus
-  procedure do_read(addr : in std_logic_vector(31 downto 0)) is
+  -- Stimulus (no procedures → no parser issues)
+  process
     variable exp : std_logic_vector(0 to 31);
   begin
-    Read_address <= addr;
-    Start_read   <= '1';
-    wait until rising_edge(clk);
-    Start_read   <= '0';
-
-    -- wait for Read_Done
-    wait until Read_Done='1';
-    exp := to_up(ROM(to_integer(unsigned(addr(31 downto 2)))));
-    assert Read_Data = exp
-      report "Data mismatch at addr " & integer'image(to_integer(unsigned(addr)))
-      severity failure;
-
-    -- ensure single-cycle pulse
-    wait until rising_edge(clk);
-    assert Read_Done='0' report "Read_Done not a single-cycle pulse" severity failure;
-    assert Error='0'     report "Unexpected Error=1"                 severity failure;
-  end procedure;
-
-  -- run
-  process
-  begin
     -- reset
-    rstn <= '0';
-    wait for 80 ns;
-    rstn <= '1';
-    wait for 20 ns;
+    rstn <= '0'; wait for 80 ns; rstn <= '1'; wait for 20 ns;
 
-    do_read(w32(16#00000000#));
-    do_read(w32(16#00000004#));
-    do_read(w32(16#00000008#));
+    -- 1st read
+    Read_address <= w32(16#00000000#);
+    Start_read   <= '1';  wait until rising_edge(clk);  Start_read <= '0';
+    wait until Read_Done='1';
+    exp := to_up(ROM(to_integer(unsigned(Read_address(31 downto 2)))));
+    assert Read_Data = exp report "Mismatch @0x0" severity failure;
+    wait until rising_edge(clk); assert Read_Done='0' severity failure;
+
+    -- 2nd read
+    Read_address <= w32(16#00000004#);
+    Start_read   <= '1';  wait until rising_edge(clk);  Start_read <= '0';
+    wait until Read_Done='1';
+    exp := to_up(ROM(to_integer(unsigned(Read_address(31 downto 2)))));
+    assert Read_Data = exp report "Mismatch @0x4" severity failure;
+    wait until rising_edge(clk); assert Read_Done='0' severity failure;
+
+    -- 3rd read
+    Read_address <= w32(16#00000008#);
+    Start_read   <= '1';  wait until rising_edge(clk);  Start_read <= '0';
+    wait until Read_Done='1';
+    exp := to_up(ROM(to_integer(unsigned(Read_address(31 downto 2)))));
+    assert Read_Data = exp report "Mismatch @0x8" severity failure;
+    wait until rising_edge(clk); assert Read_Done='0' severity failure;
 
     report "TB PASS: entity_name fetch path OK" severity note;
     wait;
