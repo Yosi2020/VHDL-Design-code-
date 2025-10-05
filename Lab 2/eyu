@@ -1,14 +1,15 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use std.textio.all;
 
-entity tb_fetch_connector is end tb_fetch_connector;
+entity tb_fetch_connector_file is end tb_fetch_connector_file;
 
-architecture sim of tb_fetch_connector is
+architecture sim of tb_fetch_connector_file is
   signal clk   : std_logic := '0';
   signal reset : std_logic := '1';
 
-  -- AXI wires
+  -- AXI
   signal M_AXI_ARID    : std_logic_vector(0 downto 0);
   signal M_AXI_ARADDR  : std_logic_vector(31 downto 0);
   signal M_AXI_ARLEN   : std_logic_vector(7 downto 0);
@@ -59,26 +60,55 @@ architecture sim of tb_fetch_connector is
   signal pc_q, alu_y, regA_q, regB_q : std_logic_vector(31 downto 0);
   signal ill : std_logic;
 
-  -- Simple instruction ROM (word index = ARADDR(31:2))
-  type rom_t is array (0 to 255) of std_logic_vector(31 downto 0);
-  constant ROM : rom_t := (
-    0 => x"00500093",  -- 0x0000: ADDI x1,x0,5
-    1 => x"00C00113",  -- 0x0004: ADDI x2,x0,12
-    2 => x"002081B3",  -- 0x0008: ADD x3,x1,x2  (adjust if your decoder expects x5)
-    3 => x"00108063",  -- 0x000C: BEQ x1,x1,+8  (branch to 0x0018)
-    4 => x"00000013",  -- 0x0010: NOP
-    5 => x"00000013",  -- 0x0014: NOP
-    6 => x"00A28293",  -- 0x0018: ADDI x5,x5,10 (another ALU op)
-    others => x"00000013"
-  );
+  -- Instruction memory
+  type rom_t is array (0 to 1023) of std_logic_vector(31 downto 0);
+  signal ROM : rom_t := (others => (others => '0'));
 
-  signal aword   : integer range 0 to 255 := 0;
-  signal pending : std_logic := '0';
-  signal delay   : integer range 0 to 3 := 0;
+  -- loader
+  impure function hex32(s : string) return std_logic_vector is
+    variable v : std_logic_vector(31 downto 0);
+  begin
+    v := (others => '0');
+    -- expects 8 hex chars per line
+    for i in 0 to 7 loop
+      variable c : character := s(s'low + i);
+      variable n : integer;
+      begin
+        case c is
+          when '0' to '9' => n := character'pos(c) - character'pos('0');
+          when 'A' to 'F' => n := 10 + character'pos(c) - character'pos('A');
+          when 'a' to 'f' => n := 10 + character'pos(c) - character'pos('a');
+          when others     => n := 0;
+        end case;
+        v(31 - 4*i downto 28 - 4*i) := std_logic_vector(to_unsigned(n,4));
+      end;
+    end loop;
+    return v;
+  end function;
+
 begin
-  -- clock & reset
+  -- 100 MHz clock & reset
   clk <= not clk after 5 ns;
   process begin reset <= '1'; wait for 120 ns; reset <= '0'; wait; end process;
+
+  -- Load program.mem (8 hex digits per line)
+  process
+    file f : text open read_mode is "program.mem";
+    variable L : line;
+    variable idx : integer := 0;
+    variable s   : string(1 to 8);
+  begin
+    while not endfile(f) loop
+      readline(f, L);
+      if L'length >= 8 then
+        read(L, s);
+        ROM(idx) <= hex32(s);
+        idx := idx + 1;
+      end if;
+    end loop;
+    report "Loaded " & integer'image(idx) & " instructions from program.mem";
+    wait;
+  end process;
 
   -- DUT wrapper
   U_TOP: entity work.fetch_connector
@@ -87,7 +117,6 @@ begin
       reset => reset,
       M_AXI_ACLK    => open,
       M_AXI_ARESETN => open,
-      -- AXI
       M_AXI_ARID    => M_AXI_ARID,
       M_AXI_ARADDR  => M_AXI_ARADDR,
       M_AXI_ARLEN   => M_AXI_ARLEN,
@@ -107,7 +136,6 @@ begin
       M_AXI_RUSER   => M_AXI_RUSER,
       M_AXI_RVALID  => M_AXI_RVALID,
       M_AXI_RREADY  => M_AXI_RREADY,
-      -- AW/W/B passthrough
       M_AXI_AWID    => M_AXI_AWID,   M_AXI_AWADDR => M_AXI_AWADDR,
       M_AXI_AWLEN   => M_AXI_AWLEN,  M_AXI_AWSIZE => M_AXI_AWSIZE,
       M_AXI_AWBURST => M_AXI_AWBURST,M_AXI_AWLOCK => M_AXI_AWLOCK,
@@ -120,7 +148,6 @@ begin
       M_AXI_BID     => M_AXI_BID,    M_AXI_BRESP  => M_AXI_BRESP,
       M_AXI_BUSER   => M_AXI_BUSER,  M_AXI_BVALID => M_AXI_BVALID,
       M_AXI_BREADY  => M_AXI_BREADY,
-      -- core observability
       pc_q          => pc_q,
       alu_y         => alu_y,
       regA_q        => regA_q,
@@ -130,35 +157,32 @@ begin
 
   -- AXI ROM model (single beat, 2-cycle latency)
   process(clk)
+    variable word_idx : integer;
+    variable lat      : integer := 0;
+    variable have_req : std_logic := '0';
   begin
     if rising_edge(clk) then
       if reset='1' then
-        pending      <= '0';
-        M_AXI_RVALID <= '0';
-        M_AXI_RLAST  <= '0';
+        M_AXI_RVALID <= '0'; M_AXI_RLAST <= '0'; have_req := '0'; lat := 0;
       else
         if (M_AXI_ARVALID='1' and M_AXI_ARREADY='1') then
-          aword   <= to_integer(unsigned(M_AXI_ARADDR(31 downto 2)));
-          pending <= '1';
-          delay   <= 2;
+          word_idx := to_integer(unsigned(M_AXI_ARADDR(31 downto 2)));
+          have_req := '1'; lat := 2;
         end if;
 
         if (M_AXI_RVALID='1' and M_AXI_RREADY='1') then
-          M_AXI_RVALID <= '0';
-          M_AXI_RLAST  <= '0';
+          M_AXI_RVALID <= '0'; M_AXI_RLAST <= '0';
         end if;
 
-        if pending='1' then
-          if delay>0 then
-            delay <= delay - 1;
+        if have_req='1' then
+          if lat>0 then
+            lat := lat - 1;
           else
-            M_AXI_RDATA  <= ROM(aword);
+            M_AXI_RDATA  <= ROM(word_idx);
             M_AXI_RRESP  <= "00";
             M_AXI_RVALID <= '1';
             M_AXI_RLAST  <= '1';
-            if M_AXI_RREADY='1' then
-              pending <= '0';
-            end if;
+            if M_AXI_RREADY='1' then have_req := '0'; end if;
           end if;
         end if;
       end if;
