@@ -34,7 +34,7 @@ entity fetch_connector is
     M_AXI_RVALID  : in  std_logic;
     M_AXI_RREADY  : out std_logic;
 
-    -- AXI Write passthrough (unused by IF)
+    -- AXI Write passthrough (unused)
     M_AXI_AWID    : out std_logic_vector(0 downto 0);
     M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
     M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
@@ -59,7 +59,7 @@ entity fetch_connector is
     M_AXI_BVALID  : in  std_logic;
     M_AXI_BREADY  : out std_logic;
 
-    -- Core observability
+    -- core observability
     pc_q        : out std_logic_vector(31 downto 0);
     alu_y       : out std_logic_vector(31 downto 0);
     regA_q      : out std_logic_vector(31 downto 0);
@@ -69,36 +69,37 @@ entity fetch_connector is
 end fetch_connector;
 
 architecture Behavioral of fetch_connector is
-  type st_t is (S_FETCH, S_WAIT);
-  signal st            : st_t := S_FETCH;
-  signal start_read    : std_logic := '0';
-  signal fetch_done    : std_logic := '0';
-  signal fetch_err     : std_logic := '0';
-  signal fetch_data    : std_logic_vector(0 to 31) := (others => '0');
+  signal s_start_read   : std_logic := '0';
+  signal s_read_done    : std_logic := '0';
+  signal s_read_done_d1 : std_logic := '0';
+  signal s_error        : std_logic := '0';
+  signal s_data         : std_logic_vector(0 to 31) := (others => '0');
 
-  signal instr_c       : std_logic_vector(31 downto 0) := (others => '0');
-  signal instr_r       : std_logic_vector(31 downto 0) := (others => '0');
-  signal pc_s          : std_logic_vector(31 downto 0);
-  signal rstn_axi      : std_logic;
-  signal exec_en       : std_logic := '0';
+  signal instr_c        : std_logic_vector(31 downto 0) := (others => '0');
+  signal instr_r        : std_logic_vector(31 downto 0) := (others => '0');
+
+  signal pc_s           : std_logic_vector(31 downto 0);
+  signal rstn_axi       : std_logic;
+  signal exec_en        : std_logic := '0';
+  signal inflight       : std_logic := '0';
 begin
-  -- AXI clock/reset outward
+  -- AXI clk/rst outward
   M_AXI_ACLK    <= clk;
-  rstn_axi      <= not reset;          -- signal, not expression
+  rstn_axi      <= not reset;
   M_AXI_ARESETN <= rstn_axi;
 
   -- map 0..31 to 31:0
   gen_map: for i in 0 to 31 generate
-    instr_c(i) <= fetch_data(i);
+    instr_c(i) <= s_data(i);
   end generate;
 
-  -- core connector (must gate PCie/PCle with exec_en)
+  -- your Lab-2 core glue (must accept exec_en)
   U_CORE: entity work.connector
     port map (
       clk         => clk,
       reset       => reset,
       eyu         => instr_r,
-      exec_en     => exec_en,      -- NEW: 1-cycle pulse per fetched instr
+      exec_en     => exec_en,     -- 1-cycle per fetched instruction
       pc_q        => pc_s,
       alu_y       => alu_y,
       regA_q      => regA_q,
@@ -107,7 +108,7 @@ begin
     );
   pc_q <= pc_s;
 
-  -- AXI instruction fetch master
+  -- fetch master
   U_FETCH: entity work.entity_name
     generic map (
       C_M_AXI_ID_WIDTH     => 1,
@@ -120,73 +121,68 @@ begin
       C_M_AXI_BUSER_WIDTH  => 1
     )
     port map (
-      Start_read    => start_read,
-      Read_address  => pc_s,          -- fetch at current PC
-      Read_Done     => fetch_done,
-      Read_Data     => fetch_data,
-      Error         => fetch_err,
+      Start_read    => s_start_read,
+      Read_address  => pc_s,
+      Read_Done     => s_read_done,
+      Read_Data     => s_data,
+      Error         => s_error,
       M_AXI_ACLK    => clk,
       M_AXI_ARESETN => rstn_axi,
       -- AR
-      M_AXI_ARID    => M_AXI_ARID,
-      M_AXI_ARADDR  => M_AXI_ARADDR,
-      M_AXI_ARLEN   => M_AXI_ARLEN,
-      M_AXI_ARSIZE  => M_AXI_ARSIZE,
-      M_AXI_ARBURST => M_AXI_ARBURST,
-      M_AXI_ARLOCK  => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE,
-      M_AXI_ARPROT  => M_AXI_ARPROT,
-      M_AXI_ARQOS   => M_AXI_ARQOS,
-      M_AXI_ARUSER  => M_AXI_ARUSER,
-      M_AXI_ARVALID => M_AXI_ARVALID,
-      M_AXI_ARREADY => M_AXI_ARREADY,
+      M_AXI_ARID    => M_AXI_ARID,    M_AXI_ARADDR => M_AXI_ARADDR,
+      M_AXI_ARLEN   => M_AXI_ARLEN,   M_AXI_ARSIZE => M_AXI_ARSIZE,
+      M_AXI_ARBURST => M_AXI_ARBURST, M_AXI_ARLOCK => M_AXI_ARLOCK,
+      M_AXI_ARCACHE => M_AXI_ARCACHE, M_AXI_ARPROT => M_AXI_ARPROT,
+      M_AXI_ARQOS   => M_AXI_ARQOS,   M_AXI_ARUSER => M_AXI_ARUSER,
+      M_AXI_ARVALID => M_AXI_ARVALID, M_AXI_ARREADY => M_AXI_ARREADY,
       -- R
-      M_AXI_RID     => M_AXI_RID,
-      M_AXI_RDATA   => M_AXI_RDATA,
-      M_AXI_RRESP   => M_AXI_RRESP,
-      M_AXI_RLAST   => M_AXI_RLAST,
-      M_AXI_RUSER   => M_AXI_RUSER,
-      M_AXI_RVALID  => M_AXI_RVALID,
+      M_AXI_RID     => M_AXI_RID,     M_AXI_RDATA  => M_AXI_RDATA,
+      M_AXI_RRESP   => M_AXI_RRESP,   M_AXI_RLAST  => M_AXI_RLAST,
+      M_AXI_RUSER   => M_AXI_RUSER,   M_AXI_RVALID => M_AXI_RVALID,
       M_AXI_RREADY  => M_AXI_RREADY,
       -- AW/W/B passthrough (unused)
-      M_AXI_AWID    => M_AXI_AWID,   M_AXI_AWADDR => M_AXI_AWADDR,
-      M_AXI_AWLEN   => M_AXI_AWLEN,  M_AXI_AWSIZE => M_AXI_AWSIZE,
-      M_AXI_AWBURST => M_AXI_AWBURST,M_AXI_AWLOCK => M_AXI_AWLOCK,
-      M_AXI_AWCACHE => M_AXI_AWCACHE,M_AXI_AWPROT => M_AXI_AWPROT,
-      M_AXI_AWQOS   => M_AXI_AWQOS,  M_AXI_AWUSER => M_AXI_AWUSER,
-      M_AXI_AWVALID => M_AXI_AWVALID,M_AXI_AWREADY=> M_AXI_AWREADY,
-      M_AXI_WDATA   => M_AXI_WDATA,  M_AXI_WSTRB  => M_AXI_WSTRB,
-      M_AXI_WLAST   => M_AXI_WLAST,  M_AXI_WUSER  => M_AXI_WUSER,
-      M_AXI_WVALID  => M_AXI_WVALID, M_AXI_WREADY => M_AXI_WREADY,
-      M_AXI_BID     => M_AXI_BID,    M_AXI_BRESP  => M_AXI_BRESP,
-      M_AXI_BUSER   => M_AXI_BUSER,  M_AXI_BVALID => M_AXI_BVALID,
+      M_AXI_AWID    => M_AXI_AWID,    M_AXI_AWADDR => M_AXI_AWADDR,
+      M_AXI_AWLEN   => M_AXI_AWLEN,   M_AXI_AWSIZE => M_AXI_AWSIZE,
+      M_AXI_AWBURST => M_AXI_AWBURST, M_AXI_AWLOCK => M_AXI_AWLOCK,
+      M_AXI_AWCACHE => M_AXI_AWCACHE, M_AXI_AWPROT => M_AXI_AWPROT,
+      M_AXI_AWQOS   => M_AXI_AWQOS,   M_AXI_AWUSER => M_AXI_AWUSER,
+      M_AXI_AWVALID => M_AXI_AWVALID, M_AXI_AWREADY => M_AXI_AWREADY,
+      M_AXI_WDATA   => M_AXI_WDATA,   M_AXI_WSTRB  => M_AXI_WSTRB,
+      M_AXI_WLAST   => M_AXI_WLAST,   M_AXI_WUSER  => M_AXI_WUSER,
+      M_AXI_WVALID  => M_AXI_WVALID,  M_AXI_WREADY => M_AXI_WREADY,
+      M_AXI_BID     => M_AXI_BID,     M_AXI_BRESP  => M_AXI_BRESP,
+      M_AXI_BUSER   => M_AXI_BUSER,   M_AXI_BVALID => M_AXI_BVALID,
       M_AXI_BREADY  => M_AXI_BREADY
     );
 
-  -- FETCH -> WAIT: pulse exec_en when a fetch completes, then repeat
+  -- start/done control: pulse exec_en on Read_Done rising edge
   process(clk)
   begin
     if rising_edge(clk) then
-      if reset = '1' then
-        st          <= S_FETCH;
-        start_read  <= '0';
-        instr_r     <= (others => '0');
-        exec_en     <= '0';
+      if reset='1' then
+        inflight       <= '0';
+        s_start_read   <= '0';
+        s_read_done_d1 <= '0';
+        exec_en        <= '0';
+        instr_r        <= (others => '0');
       else
-        exec_en <= '0';               -- default low
-        case st is
-          when S_FETCH =>
-            start_read <= '1';        -- request one read
-            st         <= S_WAIT;
+        exec_en        <= '0';                 -- default low
+        s_read_done_d1 <= s_read_done;
 
-          when S_WAIT  =>
-            start_read <= '0';
-            if (fetch_done='1') or (fetch_err='1') then
-              instr_r <= instr_c;     -- deliver instruction to decoder
-              exec_en <= '1';         -- allow PC/regs update for one cycle
-              st      <= S_FETCH;     -- next fetch
-            end if;
-        end case;
+        -- issue next read when nothing inflight
+        if inflight='0' then
+          s_start_read <= '1';
+          inflight     <= '1';
+        else
+          s_start_read <= '0';
+        end if;
+
+        -- latch instruction + pulse execute on DONE edge
+        if (s_read_done='1') and (s_read_done_d1='0') then
+          instr_r <= instr_c;
+          exec_en <= '1';
+          inflight <= '0';
+        end if;
       end if;
     end if;
   end process;
