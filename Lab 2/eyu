@@ -4,11 +4,10 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity fetch_connector is
   port (
-    -- System clock/reset
     clk   : in  std_logic;
     reset : in  std_logic;
 
-    -- AXI4 outward (to BD or testbench)
+    -- AXI outward
     M_AXI_ACLK    : out std_logic;
     M_AXI_ARESETN : out std_logic;
 
@@ -35,7 +34,7 @@ entity fetch_connector is
     M_AXI_RVALID  : in  std_logic;
     M_AXI_RREADY  : out std_logic;
 
-    -- AXI Write passthrough (unused by IF but kept for top/BD cleanliness)
+    -- AXI Write passthrough (unused by IF)
     M_AXI_AWID    : out std_logic_vector(0 downto 0);
     M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
     M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
@@ -60,7 +59,7 @@ entity fetch_connector is
     M_AXI_BVALID  : in  std_logic;
     M_AXI_BREADY  : out std_logic;
 
-    -- Observability from the core
+    -- Core observability
     pc_q        : out std_logic_vector(31 downto 0);
     alu_y       : out std_logic_vector(31 downto 0);
     regA_q      : out std_logic_vector(31 downto 0);
@@ -70,68 +69,45 @@ entity fetch_connector is
 end fetch_connector;
 
 architecture Behavioral of fetch_connector is
+  type st_t is (S_FETCH, S_WAIT);
+  signal st            : st_t := S_FETCH;
+  signal start_read    : std_logic := '0';
+  signal fetch_done    : std_logic := '0';
+  signal fetch_err     : std_logic := '0';
+  signal fetch_data    : std_logic_vector(0 to 31) := (others => '0');
 
-  -- Simple 2-state sequencer: issue read, wait for completion
-  type eyu_seq_state_t is (EYU_FETCH, EYU_WAIT);
-  signal eyu_state       : eyu_seq_state_t := EYU_FETCH;
-  signal eyu_start_read  : std_logic := '0';
-
-  -- AXI master (entity_name) handshake/result
-  signal eyu_fetch_done  : std_logic := '0';
-  signal eyu_fetch_error : std_logic := '0';
-  signal eyu_fetch_data  : std_logic_vector(0 to 31) := (others => '0');
-
-  -- Instruction mapping 0..31 -> 31:0 for the decoder
-  signal eyu_instr_c     : std_logic_vector(31 downto 0) := (others => '0');
-  signal eyu_instr_r     : std_logic_vector(31 downto 0) := (others => '0');
-
-  -- Local view of PC from the core
-  signal eyu_pc_q_s      : std_logic_vector(31 downto 0);
-
-  -- Active-low AXI reset as a SIGNAL (required in a port map)
-  signal eyu_rstn_axi    : std_logic;
-
-  -- One-cycle execute enable for the connector (gates PCie/PCle inside connector)
-  signal eyu_exec_en     : std_logic := '0';
-
+  signal instr_c       : std_logic_vector(31 downto 0) := (others => '0');
+  signal instr_r       : std_logic_vector(31 downto 0) := (others => '0');
+  signal pc_s          : std_logic_vector(31 downto 0);
+  signal rstn_axi      : std_logic;
+  signal exec_en       : std_logic := '0';
 begin
-  --------------------------------------------------------------------------
   -- AXI clock/reset outward
-  --------------------------------------------------------------------------
   M_AXI_ACLK    <= clk;
-  eyu_rstn_axi  <= not reset;
-  M_AXI_ARESETN <= eyu_rstn_axi;
+  rstn_axi      <= not reset;          -- signal, not expression
+  M_AXI_ARESETN <= rstn_axi;
 
-  --------------------------------------------------------------------------
-  -- Map fetched vector 0..31 into 31:0 instruction word
-  --------------------------------------------------------------------------
-  gen_map : for i in 0 to 31 generate
-    eyu_instr_c(i) <= eyu_fetch_data(i);
+  -- map 0..31 to 31:0
+  gen_map: for i in 0 to 31 generate
+    instr_c(i) <= fetch_data(i);
   end generate;
 
-  --------------------------------------------------------------------------
-  -- Core connector (decoder + datapath)
-  -- NOTE: this expects connector to have: exec_en : in std_logic
-  -- and to gate PCie/PCle internally with exec_en.
-  --------------------------------------------------------------------------
+  -- core connector (must gate PCie/PCle with exec_en)
   U_CORE: entity work.connector
     port map (
       clk         => clk,
       reset       => reset,
-      eyu         => eyu_instr_r,
-      exec_en     => eyu_exec_en,   -- <<< one-cycle EXECUTE enable
-      pc_q        => eyu_pc_q_s,
+      eyu         => instr_r,
+      exec_en     => exec_en,      -- NEW: 1-cycle pulse per fetched instr
+      pc_q        => pc_s,
       alu_y       => alu_y,
       regA_q      => regA_q,
       regB_q      => regB_q,
       eyu_illegal => eyu_illegal
     );
+  pc_q <= pc_s;
 
-  pc_q <= eyu_pc_q_s;
-
-  --------------------------------------------------------------------------
-  -- AXI instruction fetch master (entity_name)
-  --------------------------------------------------------------------------
+  -- AXI instruction fetch master
   U_FETCH: entity work.entity_name
     generic map (
       C_M_AXI_ID_WIDTH     => 1,
@@ -144,18 +120,14 @@ begin
       C_M_AXI_BUSER_WIDTH  => 1
     )
     port map (
-      -- control
-      Start_read    => eyu_start_read,
-      Read_address  => eyu_pc_q_s,      -- fetch at current PC
-      Read_Done     => eyu_fetch_done,
-      Read_Data     => eyu_fetch_data,  -- (0..31) ascending range
-      Error         => eyu_fetch_error,
-
-      -- AXI clock/reset
+      Start_read    => start_read,
+      Read_address  => pc_s,          -- fetch at current PC
+      Read_Done     => fetch_done,
+      Read_Data     => fetch_data,
+      Error         => fetch_err,
       M_AXI_ACLK    => clk,
-      M_AXI_ARESETN => eyu_rstn_axi,
-
-      -- AXI Read Address
+      M_AXI_ARESETN => rstn_axi,
+      -- AR
       M_AXI_ARID    => M_AXI_ARID,
       M_AXI_ARADDR  => M_AXI_ARADDR,
       M_AXI_ARLEN   => M_AXI_ARLEN,
@@ -168,8 +140,7 @@ begin
       M_AXI_ARUSER  => M_AXI_ARUSER,
       M_AXI_ARVALID => M_AXI_ARVALID,
       M_AXI_ARREADY => M_AXI_ARREADY,
-
-      -- AXI Read Data
+      -- R
       M_AXI_RID     => M_AXI_RID,
       M_AXI_RDATA   => M_AXI_RDATA,
       M_AXI_RRESP   => M_AXI_RRESP,
@@ -177,8 +148,7 @@ begin
       M_AXI_RUSER   => M_AXI_RUSER,
       M_AXI_RVALID  => M_AXI_RVALID,
       M_AXI_RREADY  => M_AXI_RREADY,
-
-      -- AXI Write passthrough (unused by IF)
+      -- AW/W/B passthrough (unused)
       M_AXI_AWID    => M_AXI_AWID,   M_AXI_AWADDR => M_AXI_AWADDR,
       M_AXI_AWLEN   => M_AXI_AWLEN,  M_AXI_AWSIZE => M_AXI_AWSIZE,
       M_AXI_AWBURST => M_AXI_AWBURST,M_AXI_AWLOCK => M_AXI_AWLOCK,
@@ -193,30 +163,28 @@ begin
       M_AXI_BREADY  => M_AXI_BREADY
     );
 
-  --------------------------------------------------------------------------
-  -- Sequencer: FETCH → WAIT, pulse EXECUTE when a fetch completes
-  --------------------------------------------------------------------------
+  -- FETCH -> WAIT: pulse exec_en when a fetch completes, then repeat
   process(clk)
   begin
     if rising_edge(clk) then
       if reset = '1' then
-        eyu_state      <= EYU_FETCH;
-        eyu_start_read <= '0';
-        eyu_instr_r    <= (others => '0');
-        eyu_exec_en    <= '0';
+        st          <= S_FETCH;
+        start_read  <= '0';
+        instr_r     <= (others => '0');
+        exec_en     <= '0';
       else
-        eyu_exec_en    <= '0';         -- default low each cycle
-        case eyu_state is
-          when EYU_FETCH =>
-            eyu_start_read <= '1';     -- 1-cycle request
-            eyu_state      <= EYU_WAIT;
+        exec_en <= '0';               -- default low
+        case st is
+          when S_FETCH =>
+            start_read <= '1';        -- request one read
+            st         <= S_WAIT;
 
-          when EYU_WAIT  =>
-            eyu_start_read <= '0';
-            if (eyu_fetch_done = '1') or (eyu_fetch_error = '1') then
-              eyu_instr_r <= eyu_instr_c;  -- present word to decoder
-              eyu_exec_en <= '1';          -- allow connector to update PC/regs
-              eyu_state   <= EYU_FETCH;    -- next fetch
+          when S_WAIT  =>
+            start_read <= '0';
+            if (fetch_done='1') or (fetch_err='1') then
+              instr_r <= instr_c;     -- deliver instruction to decoder
+              exec_en <= '1';         -- allow PC/regs update for one cycle
+              st      <= S_FETCH;     -- next fetch
             end if;
         end case;
       end if;
