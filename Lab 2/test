@@ -126,7 +126,7 @@ begin
   M_AXI_WLAST <= '0';
   M_AXI_WUSER <= (others => '0');
   M_AXI_WVALID <= '0';
-  M_AXI_BREADY <= '0';         
+  M_AXI_BREADY <= '1';         
   Read_Done <= eyu_read_done; 
   M_AXI_ARVALID <= eyu_arvalid;
   
@@ -183,7 +183,7 @@ begin
       if (M_AXI_ARESETN = '0') then   -- Synchronous reset for R-channel
         eyu_r_state   <= R_IDLE;
         M_AXI_RREADY <= '0';
-        Read_Done    <= '0';
+        eyu_read_done    <= '0';
         Error        <= '0';
         Read_Data    <= (others => '0');
       else
@@ -191,20 +191,20 @@ begin
           when R_IDLE =>
             -- Idle: no pending read. Set RREADY low, clear flags.
             M_AXI_RREADY <= '0';
-            Read_Done    <= '0';
+            eyu_read_done    <= '0';
             Error        <= '0';
             -- Transition to wait state on Start_read (transaction initiated)
             if (Start_read = '1') then
               M_AXI_RREADY <= '1';    -- be ready to accept read data
               -- Clear output flags for new transaction
-              Read_Done    <= '0';
-              Error        <= '0';
+              --Read_Done    <= '0';
+              --Error        <= '0';
               eyu_r_state  <= R_WAIT_DATA;
             end if;
 
           when R_WAIT_DATA =>
             -- Waiting for data from the slave
-            if (eyu_arvalid = '1') then
+            if (M_AXI_RVALID = '1') then
               -- A data beat is available on the bus
               Read_Data <= M_AXI_RDATA;   -- capture the returned data word
               -- Check for any error response
@@ -216,7 +216,7 @@ begin
               -- For single-beat transfer, RLAST should be 1 with this data
               if (M_AXI_RLAST = '1') then
                 -- Last (and only) beat of the burst received
-                Read_Done    <= '1';     -- signal completion of read
+                eyu_read_done    <= '1';     -- signal completion of read
                 M_AXI_RREADY <= '0';     -- not ready for more (end of burst)
                 eyu_r_state  <= R_DONE;  -- go to done state to finalize
               end if;
@@ -226,11 +226,11 @@ begin
 
           when R_DONE =>
             -- One cycle done state: hold Read_Done (and Error) high, then clear
-            Read_Done   <= '1';   -- (remains asserted for this extra cycle)
+            eyu_read_done   <= '1';   -- (remains asserted for this extra cycle)
             -- Error stays asserted if it was set (no need to reassign here)
             -- Transition back to idle on next cycle, clear flags
             eyu_r_state <= R_IDLE;
-            Read_Done   <= '0';
+            eyu_read_done   <= '0';
             Error       <= '0';
             -- Note: Read_Data can retain the last fetched value until next use
           
