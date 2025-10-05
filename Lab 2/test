@@ -138,7 +138,7 @@ begin
       if (M_AXI_ARESETN = '0') then   
         -- reset and clear AR
         eyu_ar_state   <= AR_IDLE;
-        M_AXI_ARVALID <= '0';
+        eyu_arvalid <= '0';
         M_AXI_ARADDR <= (others => '0');
         eyu_inflight <= '0';
       else
@@ -153,7 +153,7 @@ begin
               -- Latch address and start the read transaction
               eyu_addr_reg <= Read_address;
               M_AXI_ARADDR <= Read_address;
-              M_AXI_ARVALID <= '1';   -- initiate ARVALID 
+              eyu_arvalid <= '1';   -- initiate ARVALID 
               eyu_ar_state <= AR_SEND_ADDR;
               eyu_inflight <= '1';
             end if;
@@ -204,7 +204,7 @@ begin
 
           when R_WAIT_DATA =>
             -- Waiting for data from the slave
-            if (M_AXI_RVALID = '1') then
+            if (eyu_arvalid = '1') then
               -- A data beat is available on the bus
               Read_Data <= M_AXI_RDATA;   -- capture the returned data word
               -- Check for any error response
