@@ -194,7 +194,7 @@ begin
             eyu_read_done    <= '0';
             Error        <= '0';
             -- Transition to wait state on Start_read (transaction initiated)
-            if (Start_read = '1') then
+            if (eyu_inflight = '1') then
               M_AXI_RREADY <= '1';    -- be ready to accept read data
               -- Clear output flags for new transaction
               --Read_Done    <= '0';
