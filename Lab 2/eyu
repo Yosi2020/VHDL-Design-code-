@@ -4,11 +4,10 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity fetch_connector is
   port (
-    -- System clock/reset
     clk   : in  std_logic;
     reset : in  std_logic;
 
-    -- AXI4 (exposed to BD or TB)
+    -- AXI4 outward
     M_AXI_ACLK    : out std_logic;
     M_AXI_ARESETN : out std_logic;
 
@@ -35,7 +34,7 @@ entity fetch_connector is
     M_AXI_RVALID  : in  std_logic;
     M_AXI_RREADY  : out std_logic;
 
-    -- AXI Write (exposed/tied by BD or TB; not used by IF)
+    -- AXI Write channels (exposed; unused by IF)
     M_AXI_AWID    : out std_logic_vector(0 downto 0);
     M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
     M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
@@ -60,7 +59,7 @@ entity fetch_connector is
     M_AXI_BVALID  : in  std_logic;
     M_AXI_BREADY  : out std_logic;
 
-    -- Observability (from your inner connector)
+    -- Observability from your core
     pc_q        : out std_logic_vector(31 downto 0);
     alu_y       : out std_logic_vector(31 downto 0);
     regA_q      : out std_logic_vector(31 downto 0);
@@ -70,30 +69,27 @@ entity fetch_connector is
 end fetch_connector;
 
 architecture Behavioral of fetch_connector is
-  -- sequencer
-  type eyu_seq_state_t is (EYU_FETCH, EYU_WAIT);
-  signal eyu_state      : eyu_seq_state_t := EYU_FETCH;
-  signal eyu_start_read : std_logic := '0';
+  type s_state is (S_FETCH, S_WAIT);
+  signal st            : s_state := S_FETCH;
+  signal eyu_start_read: std_logic := '0';
+  signal eyu_axi_resetn : std_logic;
 
-  -- AXI master (entity_name) handshake/result
-  signal eyu_fetch_done  : std_logic := '0';
-  signal eyu_fetch_error : std_logic := '0';
-  signal eyu_fetch_data  : std_logic_vector(0 to 31) := (others=>'0');
+  signal fetch_done  : std_logic := '0';
+  signal fetch_error : std_logic := '0';
+  signal fetch_data  : std_logic_vector(0 to 31) := (others=>'0');
 
-  -- instruction mapping 0..31 -> 31 downto 0 for your connector
-  signal eyu_instr_c : std_logic_vector(31 downto 0) := (others=>'0');
-  signal eyu_instr_r : std_logic_vector(31 downto 0) := (others=>'0');
+  signal instr_c : std_logic_vector(31 downto 0) := (others=>'0');
+  signal instr_r : std_logic_vector(31 downto 0) := (others=>'0');
 
-  -- inner connector PC
-  signal pc_q_s : std_logic_vector(31 downto 0);
+  signal pc_q_s  : std_logic_vector(31 downto 0);
 begin
-  -- AXI clock/reset outward
+  -- pass-through AXI clock/reset
   M_AXI_ACLK    <= clk;
   M_AXI_ARESETN <= not reset;
 
-  -- map fetched vector to instruction[31:0]
-  gen_map : for i in 0 to 31 generate
-    eyu_instr_c(i) <= eyu_fetch_data(i);
+  -- map 0..31 vector to 31:0
+  gen_map: for i in 0 to 31 generate
+    instr_c(i) <= fetch_data(i);
   end generate;
 
   -- your existing connector (decoder + datapath)
@@ -101,7 +97,7 @@ begin
     port map (
       clk         => clk,
       reset       => reset,
-      eyu         => eyu_instr_r, -- latched word from AXI
+      eyu         => instr_r,
       pc_q        => pc_q_s,
       alu_y       => alu_y,
       regA_q      => regA_q,
@@ -125,12 +121,12 @@ begin
     )
     port map (
       Start_read    => eyu_start_read,
-      Read_address  => pc_q_s,          -- fetch at current PC
-      Read_Done     => eyu_fetch_done,
-      Read_Data     => eyu_fetch_data,  -- (0..31)
-      Error         => eyu_fetch_error,
+      Read_address  => pc_q_s,
+      Read_Done     => fetch_done,
+      Read_Data     => fetch_data,
+      Error         => fetch_error,
       M_AXI_ACLK    => clk,
-      M_AXI_ARESETN => not reset,
+      M_AXI_ARESETN => eyu_axi_resetn,
       -- AR
       M_AXI_ARID    => M_AXI_ARID,
       M_AXI_ARADDR  => M_AXI_ARADDR,
@@ -177,26 +173,25 @@ begin
       M_AXI_BVALID  => M_AXI_BVALID,
       M_AXI_BREADY  => M_AXI_BREADY
     );
+    
+  M_AXI_ARESETN <= eyu_axi_resetn;
 
-  -- Simple 2-state fetch/await-done loop
+  -- simple fetch/await loop
   process(clk)
   begin
     if rising_edge(clk) then
-      if reset = '1' then
-        eyu_state      <= EYU_FETCH;
-        eyu_start_read <= '0';
-        eyu_instr_r    <= (others => '0');
+      if reset='1' then
+        st <= S_FETCH; eyu_start_read <= '0'; instr_r <= (others=>'0');
       else
-        case eyu_state is
-          when EYU_FETCH =>
-            eyu_start_read <= '1';          -- request one read
-            eyu_state      <= EYU_WAIT;
-
-          when EYU_WAIT  =>
+        case st is
+          when S_FETCH =>
+            eyu_start_read <= '1';
+            st <= S_WAIT;
+          when S_WAIT  =>
             eyu_start_read <= '0';
-            if (eyu_fetch_done = '1') or (eyu_fetch_error = '1') then
-              eyu_instr_r <= eyu_instr_c;   -- latch the fetched word
-              eyu_state   <= EYU_FETCH;     -- next fetch
+            if (fetch_done='1') or (fetch_error='1') then
+              instr_r <= instr_c;     -- deliver instruction to decoder
+              st      <= S_FETCH;     -- next fetch
             end if;
         end case;
       end if;
