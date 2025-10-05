@@ -32,7 +32,7 @@ architecture sim of tb_entity_name is
   signal M_AXI_ARQOS   : std_logic_vector(3 downto 0);
   signal M_AXI_ARUSER  : std_logic_vector(0 downto 0);
   signal M_AXI_ARVALID : std_logic;
-  signal M_AXI_ARREADY : std_logic := '0';
+  signal M_AXI_ARREADY : std_logic := '1'; -- always ready
 
   signal M_AXI_RID     : std_logic_vector(C_ID_W-1 downto 0) := (others=>'0');
   signal M_AXI_RDATA   : std_logic_vector(C_DATA_W-1 downto 0) := (others=>'0');
@@ -42,7 +42,7 @@ architecture sim of tb_entity_name is
   signal M_AXI_RVALID  : std_logic := '0';
   signal M_AXI_RREADY  : std_logic;
 
-  -- AXI write (unused but must exist)
+  -- AXI write (unused; tied/sunk)
   signal M_AXI_AWID    : std_logic_vector(C_ID_W-1 downto 0);
   signal M_AXI_AWADDR  : std_logic_vector(C_ADDR_W-1 downto 0);
   signal M_AXI_AWLEN   : std_logic_vector(7 downto 0);
@@ -76,11 +76,11 @@ architecture sim of tb_entity_name is
     3 => x"002081B3",  -- ADD  x3,x1,x2
     others => x"00000013"
   );
-  signal aword    : integer range 0 to 255 := 0;
-  signal pending  : std_logic := '0';
-  signal delay    : integer range 0 to 3 := 0;
+  signal aword   : integer range 0 to 255 := 0;
+  signal pending : std_logic := '0';
+  signal delay   : integer range 0 to 3 := 0;
 
-  -- map 31:0 to 0:31 for compare (since Read_Data is 0..31)
+  -- helper: convert 31:0 to 0:31 for compare
   function to_up(v : std_logic_vector(31 downto 0)) return std_logic_vector is
     variable r : std_logic_vector(0 to 31);
   begin
@@ -88,14 +88,14 @@ architecture sim of tb_entity_name is
     return r;
   end function;
 
-  -- helper for literal widths
+  -- 32-bit helper literal
   function w32(x : natural) return std_logic_vector is
   begin
     return std_logic_vector(to_unsigned(x, 32));
   end function;
 
 begin
-  -- 100 MHz clk & reset
+  -- 100 MHz clock & reset
   clk  <= not clk after 5 ns;
   process begin rstn <= '0'; wait for 80 ns; rstn <= '1'; wait; end process;
 
@@ -127,7 +127,7 @@ begin
       M_AXI_ARSIZE  => M_AXI_ARSIZE,
       M_AXI_ARBURST => M_AXI_ARBURST,
       M_AXI_ARLOCK  => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE,   -- <-- FIXED NAME
+      M_AXI_ARCACHE => M_AXI_ARCACHE,  -- correct signal
       M_AXI_ARPROT  => M_AXI_ARPROT,
       M_AXI_ARQOS   => M_AXI_ARQOS,
       M_AXI_ARUSER  => M_AXI_ARUSER,
@@ -169,8 +169,7 @@ begin
       M_AXI_BREADY  => M_AXI_BREADY
     );
 
-  -- AXI memory model
-  M_AXI_ARREADY <= '1';
+  -- AXI memory model (single-beat, fixed latency)
   process(clk)
   begin
     if rising_edge(clk) then
@@ -183,10 +182,10 @@ begin
         if (M_AXI_ARVALID='1' and M_AXI_ARREADY='1') then
           aword   <= to_integer(unsigned(M_AXI_ARADDR(31 downto 2)));
           pending <= '1';
-          delay   <= 2; -- fixed 2 cycles latency
+          delay   <= 2; -- two-cycle latency
         end if;
 
-        -- default deassert
+        -- default deassert after handshake
         if (M_AXI_RVALID='1' and M_AXI_RREADY='1') then
           M_AXI_RVALID <= '0';
           M_AXI_RLAST  <= '0';
@@ -210,6 +209,9 @@ begin
     end if;
   end process;
 
+  -- 100 MHz clock
+  clk <= not clk after 5 ns;
+
   -- Self-checking stimulus
   procedure do_read(addr : in std_logic_vector(31 downto 0)) is
     variable exp : std_logic_vector(0 to 31);
@@ -232,14 +234,19 @@ begin
     assert Error='0'     report "Unexpected Error=1"                 severity failure;
   end procedure;
 
-  -- drive a few reads
+  -- run
   process
   begin
-    wait until rstn='1';
+    -- reset
+    rstn <= '0';
+    wait for 80 ns;
+    rstn <= '1';
     wait for 20 ns;
+
     do_read(w32(16#00000000#));
     do_read(w32(16#00000004#));
     do_read(w32(16#00000008#));
+
     report "TB PASS: entity_name fetch path OK" severity note;
     wait;
   end process;
