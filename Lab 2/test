@@ -230,8 +230,8 @@ begin
             -- Error stays asserted if it was set (no need to reassign here)
             -- Transition back to idle on next cycle, clear flags
             eyu_r_state <= R_IDLE;
-            eyu_read_done   <= '0';
-            Error       <= '0';
+            -- eyu_read_done   <= '0';
+            -- Error       <= '0';
             -- Note: Read_Data can retain the last fetched value until next use
           
           when others =>
