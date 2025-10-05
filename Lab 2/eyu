@@ -1,190 +1,107 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 09/23/2025 01:17:17 AM
+-- Design Name: 
+-- Module Name: connector - Behavioral
+-- Project Name: 
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+use IEEE.numeric_std.all;
 
-entity fetch_connector is
-  port (
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity connector is
+  Port ( 
     clk   : in  std_logic;
     reset : in  std_logic;
-
-    -- AXI outward
-    M_AXI_ACLK    : out std_logic;
-    M_AXI_ARESETN : out std_logic;
-
-    -- AXI Read Address
-    M_AXI_ARID    : out std_logic_vector(0 downto 0);
-    M_AXI_ARADDR  : out std_logic_vector(31 downto 0);
-    M_AXI_ARLEN   : out std_logic_vector(7 downto 0);
-    M_AXI_ARSIZE  : out std_logic_vector(2 downto 0);
-    M_AXI_ARBURST : out std_logic_vector(1 downto 0);
-    M_AXI_ARLOCK  : out std_logic;
-    M_AXI_ARCACHE : out std_logic_vector(3 downto 0);
-    M_AXI_ARPROT  : out std_logic_vector(2 downto 0);
-    M_AXI_ARQOS   : out std_logic_vector(3 downto 0);
-    M_AXI_ARUSER  : out std_logic_vector(0 downto 0);
-    M_AXI_ARVALID : out std_logic;
-    M_AXI_ARREADY : in  std_logic;
-
-    -- AXI Read Data
-    M_AXI_RID     : in  std_logic_vector(0 downto 0);
-    M_AXI_RDATA   : in  std_logic_vector(31 downto 0);
-    M_AXI_RRESP   : in  std_logic_vector(1 downto 0);
-    M_AXI_RLAST   : in  std_logic;
-    M_AXI_RUSER   : in  std_logic_vector(0 downto 0);
-    M_AXI_RVALID  : in  std_logic;
-    M_AXI_RREADY  : out std_logic;
-
-    -- AXI Write passthrough (unused)
-    M_AXI_AWID    : out std_logic_vector(0 downto 0);
-    M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
-    M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
-    M_AXI_AWSIZE  : out std_logic_vector(2 downto 0);
-    M_AXI_AWBURST : out std_logic_vector(1 downto 0);
-    M_AXI_AWLOCK  : out std_logic;
-    M_AXI_AWCACHE : out std_logic_vector(3 downto 0);
-    M_AXI_AWPROT  : out std_logic_vector(2 downto 0);
-    M_AXI_AWQOS   : out std_logic_vector(3 downto 0);
-    M_AXI_AWUSER  : out std_logic_vector(0 downto 0);
-    M_AXI_AWVALID : out std_logic;
-    M_AXI_AWREADY : in  std_logic;
-    M_AXI_WDATA   : out std_logic_vector(31 downto 0);
-    M_AXI_WSTRB   : out std_logic_vector(3 downto 0);
-    M_AXI_WLAST   : out std_logic;
-    M_AXI_WUSER   : out std_logic_vector(0 downto 0);
-    M_AXI_WVALID  : out std_logic;
-    M_AXI_WREADY  : in  std_logic;
-    M_AXI_BID     : in  std_logic_vector(0 downto 0);
-    M_AXI_BRESP   : in  std_logic_vector(1 downto 0);
-    M_AXI_BUSER   : in  std_logic_vector(0 downto 0);
-    M_AXI_BVALID  : in  std_logic;
-    M_AXI_BREADY  : out std_logic;
-
-    -- core observability
-    pc_q        : out std_logic_vector(31 downto 0);
-    alu_y       : out std_logic_vector(31 downto 0);
-    regA_q      : out std_logic_vector(31 downto 0);
-    regB_q      : out std_logic_vector(31 downto 0);
-    eyu_illegal : out std_logic
+    eyu : in  std_logic_vector(31 downto 0);
+    exec_en : in std_logic;  -- 1-cycle execute enable
+    -- observability
+    pc_q   : out std_logic_vector(31 downto 0);
+    alu_y  : out std_logic_vector(31 downto 0);
+    regA_q : out std_logic_vector(31 downto 0);
+    regB_q : out std_logic_vector(31 downto 0);
+    eyu_illegal: out std_logic
   );
-end fetch_connector;
+end connector;
 
-architecture Behavioral of fetch_connector is
-  signal s_start_read   : std_logic := '0';
-  signal s_read_done    : std_logic := '0';
-  signal s_read_done_d1 : std_logic := '0';
-  signal s_error        : std_logic := '0';
-  signal s_data         : std_logic_vector(0 to 31) := (others => '0');
-
-  signal instr_c        : std_logic_vector(31 downto 0) := (others => '0');
-  signal instr_r        : std_logic_vector(31 downto 0) := (others => '0');
-
-  signal pc_s           : std_logic_vector(31 downto 0);
-  signal rstn_axi       : std_logic;
-  signal exec_en        : std_logic := '0';
-  signal inflight       : std_logic := '0';
+architecture Behavioral of connector is
+      -- wires from decoder
+      signal Asel_s, Bsel_s, Dsel_s : std_logic_vector(4 downto 0);
+      signal Dlen_s, PCAsel_s, IMMBsel_s, PCDsel_s, PCle_s, PCie_s, isBR_s : std_logic;
+      signal BRcond_s : std_logic_vector(2 downto 0);
+      signal ALUFunc_s: std_logic_vector(3 downto 0);
+      signal IMM_s    : std_logic_vector(31 downto 0);
+      signal PCle_g, PCie_g : std_logic;  -- gate enable to pc
+      signal eyu_branch_q : std_logic;
 begin
-  -- AXI clk/rst outward
-  M_AXI_ACLK    <= clk;
-  rstn_axi      <= not reset;
-  M_AXI_ARESETN <= rstn_axi;
-
-  -- map 0..31 to 31:0
-  gen_map: for i in 0 to 31 generate
-    instr_c(i) <= s_data(i);
-  end generate;
-
-  -- your Lab-2 core glue (must accept exec_en)
-  U_CORE: entity work.connector
+    PCie_g <= exec_en and (PCie_s or eyu_branch_q);
+    PCle_g <= exec_en and (not (PCle_s or eyu_branch_q)); 
+    
+    U_DEC : entity work.decoder
     port map (
-      clk         => clk,
-      reset       => reset,
-      eyu         => instr_r,
-      exec_en     => exec_en,     -- 1-cycle per fetched instruction
-      pc_q        => pc_s,
-      alu_y       => alu_y,
-      regA_q      => regA_q,
-      regB_q      => regB_q,
+      clk => clk,
+      eyu => eyu,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_s,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_s,
+      PCie => PCie_s,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUfunc => ALUFunc_s,
+      IMM => IMM_s,
       eyu_illegal => eyu_illegal
-    );
-  pc_q <= pc_s;
+    ); 
 
-  -- fetch master
-  U_FETCH: entity work.entity_name
-    generic map (
-      C_M_AXI_ID_WIDTH     => 1,
-      C_M_AXI_ADDR_WIDTH   => 32,
-      C_M_AXI_DATA_WIDTH   => 32,
-      C_M_AXI_AWUSER_WIDTH => 1,
-      C_M_AXI_ARUSER_WIDTH => 1,
-      C_M_AXI_WUSER_WIDTH  => 1,
-      C_M_AXI_RUSER_WIDTH  => 1,
-      C_M_AXI_BUSER_WIDTH  => 1
-    )
+  U_DP : entity work.data_path
     port map (
-      Start_read    => s_start_read,
-      Read_address  => pc_s,
-      Read_Done     => s_read_done,
-      Read_Data     => s_data,
-      Error         => s_error,
-      M_AXI_ACLK    => clk,
-      M_AXI_ARESETN => rstn_axi,
-      -- AR
-      M_AXI_ARID    => M_AXI_ARID,    M_AXI_ARADDR => M_AXI_ARADDR,
-      M_AXI_ARLEN   => M_AXI_ARLEN,   M_AXI_ARSIZE => M_AXI_ARSIZE,
-      M_AXI_ARBURST => M_AXI_ARBURST, M_AXI_ARLOCK => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE, M_AXI_ARPROT => M_AXI_ARPROT,
-      M_AXI_ARQOS   => M_AXI_ARQOS,   M_AXI_ARUSER => M_AXI_ARUSER,
-      M_AXI_ARVALID => M_AXI_ARVALID, M_AXI_ARREADY => M_AXI_ARREADY,
-      -- R
-      M_AXI_RID     => M_AXI_RID,     M_AXI_RDATA  => M_AXI_RDATA,
-      M_AXI_RRESP   => M_AXI_RRESP,   M_AXI_RLAST  => M_AXI_RLAST,
-      M_AXI_RUSER   => M_AXI_RUSER,   M_AXI_RVALID => M_AXI_RVALID,
-      M_AXI_RREADY  => M_AXI_RREADY,
-      -- AW/W/B passthrough (unused)
-      M_AXI_AWID    => M_AXI_AWID,    M_AXI_AWADDR => M_AXI_AWADDR,
-      M_AXI_AWLEN   => M_AXI_AWLEN,   M_AXI_AWSIZE => M_AXI_AWSIZE,
-      M_AXI_AWBURST => M_AXI_AWBURST, M_AXI_AWLOCK => M_AXI_AWLOCK,
-      M_AXI_AWCACHE => M_AXI_AWCACHE, M_AXI_AWPROT => M_AXI_AWPROT,
-      M_AXI_AWQOS   => M_AXI_AWQOS,   M_AXI_AWUSER => M_AXI_AWUSER,
-      M_AXI_AWVALID => M_AXI_AWVALID, M_AXI_AWREADY => M_AXI_AWREADY,
-      M_AXI_WDATA   => M_AXI_WDATA,   M_AXI_WSTRB  => M_AXI_WSTRB,
-      M_AXI_WLAST   => M_AXI_WLAST,   M_AXI_WUSER  => M_AXI_WUSER,
-      M_AXI_WVALID  => M_AXI_WVALID,  M_AXI_WREADY => M_AXI_WREADY,
-      M_AXI_BID     => M_AXI_BID,     M_AXI_BRESP  => M_AXI_BRESP,
-      M_AXI_BUSER   => M_AXI_BUSER,   M_AXI_BVALID => M_AXI_BVALID,
-      M_AXI_BREADY  => M_AXI_BREADY
+      clk => clk,
+      reset => reset,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_s,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_g,
+      PCie => PCie_g,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUFunc => ALUFunc_s,
+      IMM => IMM_s,
+      pc_q => pc_q,
+      alu_y => alu_y,
+      regA_q => regA_q,
+      regB_q => regB_q,
+      branch_q => eyu_branch_q
     );
-
-  -- start/done control: pulse exec_en on Read_Done rising edge
-  process(clk)
-  begin
-    if rising_edge(clk) then
-      if reset='1' then
-        inflight       <= '0';
-        s_start_read   <= '0';
-        s_read_done_d1 <= '0';
-        exec_en        <= '0';
-        instr_r        <= (others => '0');
-      else
-        exec_en        <= '0';                 -- default low
-        s_read_done_d1 <= s_read_done;
-
-        -- issue next read when nothing inflight
-        if inflight='0' then
-          s_start_read <= '1';
-          inflight     <= '1';
-        else
-          s_start_read <= '0';
-        end if;
-
-        -- latch instruction + pulse execute on DONE edge
-        if (s_read_done='1') and (s_read_done_d1='0') then
-          instr_r <= instr_c;
-          exec_en <= '1';
-          inflight <= '0';
-        end if;
-      end if;
-    end if;
-  end process;
 
 end Behavioral;
