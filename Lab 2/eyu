@@ -1,14 +1,14 @@
 ----------------------------------------------------------------------------------
--- Company: 
--- Engineer: 
+-- Company: sdsmt
+-- Engineer: Eyosiyas
 -- 
--- Create Date: 09/23/2025 01:17:17 AM
--- Design Name: 
--- Module Name: connector - Behavioral
--- Project Name: 
--- Target Devices: 
--- Tool Versions: 
--- Description: 
+-- Create Date: 09/02/2025 11:33:10 AM
+-- Design Name: Eyosiyas
+-- Module Name: lab1 - Behavioral
+-- Project Name: Lab1 ALUFUNC
+-- Target Devices: None
+-- Tool Versions: v1.0
+-- Description: None
 -- 
 -- Dependencies: 
 -- 
@@ -21,7 +21,7 @@
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.numeric_std.all;
+use IEEE.numeric_std.ALL;
 
 -- Uncomment the following library declaration if using
 -- arithmetic functions with Signed or Unsigned values
@@ -32,76 +32,98 @@ use IEEE.numeric_std.all;
 --library UNISIM;
 --use UNISIM.VComponents.all;
 
-entity connector is
+entity data_path is
   Port ( 
-    clk   : in  std_logic;
-    reset : in  std_logic;
-    eyu : in  std_logic_vector(31 downto 0);
-    exec_en : in std_logic;  -- 1-cycle execute enable
-    -- observability
-    pc_q   : out std_logic_vector(31 downto 0);
-    alu_y  : out std_logic_vector(31 downto 0);
-    regA_q : out std_logic_vector(31 downto 0);
-    regB_q : out std_logic_vector(31 downto 0);
-    eyu_illegal: out std_logic
+  clk : in std_logic;
+  reset : in std_logic;
+  Asel : in std_logic_vector(4 downto 0);
+  Bsel : in std_logic_vector(4 downto 0);
+  Dsel : in std_logic_vector(4 downto 0);
+  Dlen : in std_logic;
+  PCAsel : in std_logic;
+  IMMBsel : in std_logic;
+  PCDsel : in std_logic;
+  PCle : in std_logic;
+  PCie : in std_logic;
+  isBR : in std_logic;
+  BRcond : in std_logic_vector(2 downto 0);
+  ALUFunc : in std_logic_vector(3 downto 0);
+  IMM : std_logic_vector(31 downto 0);
+  PC_q : out std_logic_vector(31 downto 0);
+  alu_y : out std_logic_vector(31 downto 0);
+  regA_q : out std_logic_vector(31 downto 0);
+  regB_q : out std_logic_vector(31 downto 0);
+  branch_q : out std_logic
   );
-end connector;
+end data_path;
 
-architecture Behavioral of connector is
-      -- wires from decoder
-      signal Asel_s, Bsel_s, Dsel_s : std_logic_vector(4 downto 0);
-      signal Dlen_s, PCAsel_s, IMMBsel_s, PCDsel_s, PCle_s, PCie_s, isBR_s : std_logic;
-      signal BRcond_s : std_logic_vector(2 downto 0);
-      signal ALUFunc_s: std_logic_vector(3 downto 0);
-      signal IMM_s    : std_logic_vector(31 downto 0);
-      signal PCle_g, PCie_g : std_logic;  -- gate enable to pc
-      signal eyu_branch_q : std_logic;
+architecture Behavioral of data_path is
+    signal Abus, Bbus : std_logic_vector(31 downto 0);
+    signal Dbus : std_logic_vector(31 downto 0);
+    signal RegA : std_logic_vector(31 downto 0);
+    signal RegB : std_logic_vector(31 downto 0);
+    signal ALU_out : std_logic_vector(31 downto 0);
+    signal pc_out : std_logic_vector(31 downto 0);
+    signal PCle_sig : std_logic;
+     
 begin
-    PCie_g <= exec_en and (PCie_s or eyu_branch_q);
-    PCle_g <= exec_en and (not (PCle_s or eyu_branch_q)); 
-    
-    U_DEC : entity work.decoder
-    port map (
-      clk => clk,
-      eyu => eyu,
-      Asel => Asel_s,
-      Bsel => Bsel_s,
-      Dsel => Dsel_s,
-      Dlen => Dlen_s,
-      PCAsel => PCAsel_s,
-      IMMBsel => IMMBsel_s,
-      PCDsel => PCDsel_s,
-      PCle => PCle_s,
-      PCie => PCie_s,
-      isBR => isBR_s,
-      BRcond => BRcond_s,
-      ALUfunc => ALUFunc_s,
-      IMM => IMM_s,
-      eyu_illegal => eyu_illegal
-    ); 
-
-  U_DP : entity work.data_path
-    port map (
-      clk => clk,
-      reset => reset,
-      Asel => Asel_s,
-      Bsel => Bsel_s,
-      Dsel => Dsel_s,
-      Dlen => Dlen_s,
-      PCAsel => PCAsel_s,
-      IMMBsel => IMMBsel_s,
-      PCDsel => PCDsel_s,
-      PCle => PCle_g,
-      PCie => PCie_g,
-      isBR => isBR_s,
-      BRcond => BRcond_s,
-      ALUFunc => ALUFunc_s,
-      IMM => IMM_s,
-      pc_q => pc_q,
-      alu_y => alu_y,
-      regA_q => regA_q,
-      regB_q => regB_q,
-      branch_q => eyu_branch_q
+    U_REG : entity work.regsiter_file port map 
+    (
+    clk => clk,
+    reset => reset,
+    Asel => Asel,
+    Bsel => Bsel,
+    Dsel => Dsel,
+    Dlen => Dlen,
+    Dbus => Dbus,
+    Aout => RegA,
+    Bout => RegB
     );
-
+    
+    
+    regA_q <= RegA;
+    regB_q <= RegB;
+    
+    U_ALU : entity work.alu port map (
+    clk => clk,
+    reset => reset,
+    Aout => REGA,
+    Bout => REGB,
+    PCAsel => PCAsel,
+    IMM => IMM,
+    IMMBsel => IMMBsel,
+    PCout => pc_out,
+    ALUfun => ALUFunc,
+    eyu_out => ALU_out
+    );
+    
+    alu_y <= ALU_out;
+    
+    U_BRANCH : entity work.branch port map (
+    clk => clk,
+    reset => reset,
+    isBR => isBR,
+    BRcond => BRcond,
+    A => REGA,
+    B => REGB,
+    eyu_output => PCle_sig
+    );
+    
+    branch_q <= PCle_sig;
+    
+    U_PC : entity work.PC port map(
+    clk => clk,
+    reset => reset,
+    PCle => PCle,
+    PCie => PCie,
+    Branch_out => PCle_sig,
+    ALUout => ALU_out,
+    eyu_out => pc_out
+    );
+    
+    pc_q <= pc_out;
+    
+    Dbus <= PC_out when PCDsel = '1' else ALU_out;
+    
+   
 end Behavioral;
