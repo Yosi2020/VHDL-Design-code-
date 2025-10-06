@@ -1,0 +1,157 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity tb_fetch_connector is end tb_fetch_connector;
+
+architecture sim of tb_fetch_connector is
+  signal clk   : std_logic := '0';
+  signal reset : std_logic := '1';
+
+  -- AXI wires
+  signal M_AXI_ARID : std_logic_vector(0 downto 0);
+  signal M_AXI_ARADDR : std_logic_vector(31 downto 0);
+  signal M_AXI_ARLEN : std_logic_vector(7 downto 0);
+  signal M_AXI_ARSIZE : std_logic_vector(2 downto 0);
+  signal M_AXI_ARBURST : std_logic_vector(1 downto 0);
+  signal M_AXI_ARLOCK : std_logic;
+  signal M_AXI_ARCACHE : std_logic_vector(3 downto 0);
+  signal M_AXI_ARPROT : std_logic_vector(2 downto 0);
+  signal M_AXI_ARQOS : std_logic_vector(3 downto 0);
+  signal M_AXI_ARUSER : std_logic_vector(0 downto 0);
+  signal M_AXI_ARVALID : std_logic;
+  signal M_AXI_ARREADY : std_logic := '1';
+
+  signal M_AXI_RID : std_logic_vector(0 downto 0) := (others=>'0');
+  signal M_AXI_RDATA : std_logic_vector(31 downto 0) := (others=>'0');
+  signal M_AXI_RRESP : std_logic_vector(1 downto 0) := "00";
+  signal M_AXI_RLAST : std_logic := '0';
+  signal M_AXI_RUSER : std_logic_vector(0 downto 0) := (others=>'0');
+  signal M_AXI_RVALID : std_logic := '0';
+  signal M_AXI_RREADY : std_logic;
+
+  -- AW/W/B passthrough (unused)
+  signal M_AXI_AWID : std_logic_vector(0 downto 0);
+  signal M_AXI_AWADDR : std_logic_vector(31 downto 0);
+  signal M_AXI_AWLEN : std_logic_vector(7 downto 0);
+  signal M_AXI_AWSIZE : std_logic_vector(2 downto 0);
+  signal M_AXI_AWBURST : std_logic_vector(1 downto 0);
+  signal M_AXI_AWLOCK : std_logic;
+  signal M_AXI_AWCACHE : std_logic_vector(3 downto 0);
+  signal M_AXI_AWPROT : std_logic_vector(2 downto 0);
+  signal M_AXI_AWQOS : std_logic_vector(3 downto 0);
+  signal M_AXI_AWUSER : std_logic_vector(0 downto 0);
+  signal M_AXI_AWVALID : std_logic;
+  signal M_AXI_AWREADY : std_logic := '0';
+  signal M_AXI_WDATA : std_logic_vector(31 downto 0);
+  signal M_AXI_WSTRB : std_logic_vector(3 downto 0);
+  signal M_AXI_WLAST : std_logic;
+  signal M_AXI_WUSER : std_logic_vector(0 downto 0);
+  signal M_AXI_WVALID : std_logic;
+  signal M_AXI_WREADY : std_logic := '0';
+  signal M_AXI_BID : std_logic_vector(0 downto 0) := (others=>'0');
+  signal M_AXI_BRESP : std_logic_vector(1 downto 0) := "00";
+  signal M_AXI_BUSER : std_logic_vector(0 downto 0) := (others=>'0');
+  signal M_AXI_BVALID : std_logic := '0';
+  signal M_AXI_BREADY : std_logic;
+
+  -- observability
+  signal pc_q, alu_y, regA_q, regB_q : std_logic_vector(31 downto 0);
+  signal ill : std_logic;
+
+  --  ROM 
+  type rom_t is array (0 to 255) of std_logic_vector(31 downto 0);
+  constant ROM : rom_t := (
+    0 => x"00500093",  -- 0x0000
+    1 => x"00C00113",  -- 0x0004
+    2 => x"002081B3",  -- 0x0008
+    3 => x"00808663",  -- 0x000C
+    4 => x"00000013",  -- 0x0010
+    5 => x"00000013",  -- 0x0014
+    6 => x"00A28293",  -- 0x0018
+    others => x"00000013"
+  );
+
+  signal pending : std_logic := '0';
+  signal lat     : integer range 0 to 3 := 0;
+  signal idx     : integer range 0 to 255 := 0;
+begin
+  -- 100 MHz clock & reset
+  clk <= not clk after 5 ns;
+  process begin reset <= '1'; wait for 120 ns; reset <= '0'; wait; end process;
+
+  -- DUT
+  U_TOP: entity work.fetch_connector
+    port map (
+      clk   => clk, reset => reset,
+      M_AXI_ACLK    => open,      M_AXI_ARESETN => open,
+      -- AXI
+      M_AXI_ARID    => M_AXI_ARID,    M_AXI_ARADDR => M_AXI_ARADDR,
+      M_AXI_ARLEN   => M_AXI_ARLEN,   M_AXI_ARSIZE => M_AXI_ARSIZE,
+      M_AXI_ARBURST => M_AXI_ARBURST, M_AXI_ARLOCK => M_AXI_ARLOCK,
+      M_AXI_ARCACHE => M_AXI_ARCACHE, M_AXI_ARPROT => M_AXI_ARPROT,
+      M_AXI_ARQOS   => M_AXI_ARQOS,   M_AXI_ARUSER => M_AXI_ARUSER,
+      M_AXI_ARVALID => M_AXI_ARVALID, M_AXI_ARREADY => M_AXI_ARREADY,
+      M_AXI_RID     => M_AXI_RID,     M_AXI_RDATA  => M_AXI_RDATA,
+      M_AXI_RRESP   => M_AXI_RRESP,   M_AXI_RLAST  => M_AXI_RLAST,
+      M_AXI_RUSER   => M_AXI_RUSER,   M_AXI_RVALID => M_AXI_RVALID,
+      M_AXI_RREADY  => M_AXI_RREADY,
+      -- AW/W/B passthrough
+      M_AXI_AWID    => M_AXI_AWID,    M_AXI_AWADDR => M_AXI_AWADDR,
+      M_AXI_AWLEN   => M_AXI_AWLEN,   M_AXI_AWSIZE => M_AXI_AWSIZE,
+      M_AXI_AWBURST => M_AXI_AWBURST, M_AXI_AWLOCK => M_AXI_AWLOCK,
+      M_AXI_AWCACHE => M_AXI_AWCACHE, M_AXI_AWPROT => M_AXI_AWPROT,
+      M_AXI_AWQOS   => M_AXI_AWQOS,   M_AXI_AWUSER => M_AXI_AWUSER,
+      M_AXI_AWVALID => M_AXI_AWVALID, M_AXI_AWREADY => M_AXI_AWREADY,
+      M_AXI_WDATA   => M_AXI_WDATA,   M_AXI_WSTRB  => M_AXI_WSTRB,
+      M_AXI_WLAST   => M_AXI_WLAST,   M_AXI_WUSER  => M_AXI_WUSER,
+      M_AXI_WVALID  => M_AXI_WVALID,  M_AXI_WREADY => M_AXI_WREADY,
+      M_AXI_BID     => M_AXI_BID,     M_AXI_BRESP  => M_AXI_BRESP,
+      M_AXI_BUSER   => M_AXI_BUSER,   M_AXI_BVALID => M_AXI_BVALID,
+      M_AXI_BREADY  => M_AXI_BREADY,
+      -- core
+      pc_q          => pc_q,
+      alu_y         => alu_y,
+      regA_q        => regA_q,
+      regB_q        => regB_q,
+      eyu_illegal   => ill
+    );
+
+  -- AXI ROM model
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      if reset='1' then
+        pending      <= '0';
+        M_AXI_RVALID <= '0';
+        M_AXI_RLAST  <= '0';
+      else
+        if (M_AXI_ARVALID='1' and M_AXI_ARREADY='1') then
+          idx     <= to_integer(unsigned(M_AXI_ARADDR(31 downto 2)));
+          pending <= '1';
+          lat     <= 2;
+        end if;
+
+        if (M_AXI_RVALID='1' and M_AXI_RREADY='1') then
+          M_AXI_RVALID <= '0';
+          M_AXI_RLAST  <= '0';
+        end if;
+
+        if pending='1' then
+          if lat > 0 then
+            lat <= lat - 1;
+          else
+            M_AXI_RDATA  <= ROM(idx);
+            M_AXI_RRESP  <= "00";
+            M_AXI_RVALID <= '1';
+            M_AXI_RLAST  <= '1';
+            if M_AXI_RREADY='1' then
+              pending <= '0';
+            end if;
+          end if;
+        end if;
+      end if;
+    end if;
+  end process;
+
+end architecture;
