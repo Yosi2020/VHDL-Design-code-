@@ -192,7 +192,7 @@ begin
           eyu_read_done <= '0';
           Error         <= '0';
           if (eyu_inflight = '1') then
-            M_AXI_RREADY <= '1';
+            M_AXI_RREADY <= '1';  -- ready become 1
             eyu_r_state  <= R_WAIT_DATA;
           end if;
 
