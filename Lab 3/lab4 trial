@@ -202,6 +202,9 @@ begin
     
     process(opcode, rs1, rs2, rd, funct3, funct7, eyu)
         -- tempo variable storage
+        --lsu flags 
+        variable v_eyu_isLOAD : std_logic := '0';
+        variable v_eyu_isSTORE : std_logic := '0';
         variable v_Asel : std_logic_vector(4 downto 0) := (others => '0');
         variable v_Bsel : std_logic_vector(4 downto 0) := (others => '0');
         variable v_Dsel : std_logic_vector(4 downto 0) := (others => '0');
@@ -256,6 +259,7 @@ begin
                 v_IMM := imm_i(eyu);
                 v_ALUfunc := ALU_add;
                 v_eyu_illegal := '0';
+                v_eyu_isLOAD := '1';
                 
              -- store
             when OPC_store =>
@@ -266,6 +270,7 @@ begin
                 v_IMM := imm_s(eyu);
                 v_ALUfunc := ALU_add;
                 v_eyu_illegal := '0';
+                v_eyu_isSTORE := '1';
                 
              -- branches
             when OPC_branch =>
@@ -345,6 +350,9 @@ begin
         ALUfunc <= v_ALUfunc;
         IMM <= v_IMM;
         eyu_illegal <= v_eyu_illegal;
+        eyu_func3 <= funct3;
+        eyu_isLOAD <= v_eyu_isLOAD;
+        eyu_isSTORE <= v_eyu_isSTORE;
         
     end process;
 
