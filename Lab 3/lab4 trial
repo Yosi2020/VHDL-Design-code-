@@ -252,7 +252,7 @@ begin
                 
             -- load
             when OPC_load =>
-                v_Dlen := '0';
+                v_Dlen := '1'; --changed form 0 to 1 
                 v_IMMBsel := '1';
                 v_PCAsel := '0';
                 v_PCDsel := '0';
@@ -293,7 +293,8 @@ begin
                 v_IMM := imm_j(eyu);
                 v_ALUfunc := ALU_add;
                 v_PCle := '1';
-                v_Dlen := '0';
+                v_PCDsel := '1';   --changed
+                v_Dlen := '1';
                 v_eyu_illegal := '0';
                 
              -- jalr
@@ -303,7 +304,8 @@ begin
                 v_IMM := imm_i(eyu);
                 v_ALUfunc := ALU_add;
                 v_PCle := '1';
-                v_Dlen := '0';
+                v_PCDsel := '1'; -- added 
+                v_Dlen := '1';
                 v_eyu_illegal := '0';
                 
             -- lui
