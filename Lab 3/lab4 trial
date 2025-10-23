@@ -70,9 +70,12 @@ architecture Behavioral of connector is
       signal eyu_isLOAD_s : std_logic;
       signal eyu_isSTORE_s : std_logic;
       signal eyu_func3_s : std_logic_vector(2 downto 0);
+      signal eyu_branch_taken : std_logic;
 begin
-    PCie_g <= exec_en and (PCie_s or eyu_branch_q);
-    PCle_g <= exec_en and (not (PCle_s or eyu_branch_q)); 
+    eyu_BRcond <= BRcond_s;
+    eyu_branch_taken <= isBR_s and eyu_branch_q;
+    PCie_g <= exec_en and (PCie_s or eyu_branch_taken);
+    PCle_g <= exec_en and (PCie_s and not eyu_branch_taken); 
     
     -- for lsu
     eyu_isLOAD <= eyu_isLOAD_s;
