@@ -4,270 +4,414 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity fetch_connector is
   port (
-    clk : in  std_logic;
+    clk   : in  std_logic;
     reset : in  std_logic;
 
-    -- AXI outward
-    M_AXI_ACLK : out std_logic;
+    -- AXI outward (single master shared by FETCH and LSU)
+    M_AXI_ACLK    : out std_logic;
     M_AXI_ARESETN : out std_logic;
 
     -- AXI Read Address
-    M_AXI_ARID : out std_logic_vector(0 downto 0);
-    M_AXI_ARADDR : out std_logic_vector(31 downto 0);
-    M_AXI_ARLEN : out std_logic_vector(7 downto 0);
-    M_AXI_ARSIZE : out std_logic_vector(2 downto 0);
+    M_AXI_ARID    : out std_logic_vector(0 downto 0);
+    M_AXI_ARADDR  : out std_logic_vector(31 downto 0);
+    M_AXI_ARLEN   : out std_logic_vector(7 downto 0);
+    M_AXI_ARSIZE  : out std_logic_vector(2 downto 0);
     M_AXI_ARBURST : out std_logic_vector(1 downto 0);
-    M_AXI_ARLOCK : out std_logic;
+    M_AXI_ARLOCK  : out std_logic;
     M_AXI_ARCACHE : out std_logic_vector(3 downto 0);
-    M_AXI_ARPROT : out std_logic_vector(2 downto 0);
-    M_AXI_ARQOS : out std_logic_vector(3 downto 0);
-    M_AXI_ARUSER : out std_logic_vector(0 downto 0);
+    M_AXI_ARPROT  : out std_logic_vector(2 downto 0);
+    M_AXI_ARQOS   : out std_logic_vector(3 downto 0);
+    M_AXI_ARUSER  : out std_logic_vector(0 downto 0);
     M_AXI_ARVALID : out std_logic;
     M_AXI_ARREADY : in  std_logic;
 
     -- AXI Read Data
-    M_AXI_RID : in  std_logic_vector(0 downto 0);
-    M_AXI_RDATA : in  std_logic_vector(31 downto 0);
-    M_AXI_RRESP : in  std_logic_vector(1 downto 0);
-    M_AXI_RLAST : in  std_logic;
-    M_AXI_RUSER : in  std_logic_vector(0 downto 0);
-    M_AXI_RVALID : in  std_logic;
-    M_AXI_RREADY : out std_logic;
+    M_AXI_RID     : in  std_logic_vector(0 downto 0);
+    M_AXI_RDATA   : in  std_logic_vector(31 downto 0);
+    M_AXI_RRESP   : in  std_logic_vector(1 downto 0);
+    M_AXI_RLAST   : in  std_logic;
+    M_AXI_RUSER   : in  std_logic_vector(0 downto 0);
+    M_AXI_RVALID  : in  std_logic;
+    M_AXI_RREADY  : out std_logic;
 
-    -- AXI Write passthrough
-    M_AXI_AWID : out std_logic_vector(0 downto 0);
-    M_AXI_AWADDR : out std_logic_vector(31 downto 0);
-    M_AXI_AWLEN : out std_logic_vector(7 downto 0);
-    M_AXI_AWSIZE : out std_logic_vector(2 downto 0);
+    -- AXI Write (used by LSU only; FETCH ties off)
+    M_AXI_AWID    : out std_logic_vector(0 downto 0);
+    M_AXI_AWADDR  : out std_logic_vector(31 downto 0);
+    M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
+    M_AXI_AWSIZE  : out std_logic_vector(2 downto 0);
     M_AXI_AWBURST : out std_logic_vector(1 downto 0);
-    M_AXI_AWLOCK : out std_logic;
+    M_AXI_AWLOCK  : out std_logic;
     M_AXI_AWCACHE : out std_logic_vector(3 downto 0);
-    M_AXI_AWPROT : out std_logic_vector(2 downto 0);
-    M_AXI_AWQOS : out std_logic_vector(3 downto 0);
-    M_AXI_AWUSER : out std_logic_vector(0 downto 0);
+    M_AXI_AWPROT  : out std_logic_vector(2 downto 0);
+    M_AXI_AWQOS   : out std_logic_vector(3 downto 0);
+    M_AXI_AWUSER  : out std_logic_vector(0 downto 0);
     M_AXI_AWVALID : out std_logic;
     M_AXI_AWREADY : in  std_logic;
-    M_AXI_WDATA : out std_logic_vector(31 downto 0);
-    M_AXI_WSTRB : out std_logic_vector(3 downto 0);
-    M_AXI_WLAST : out std_logic;
-    M_AXI_WUSER  : out std_logic_vector(0 downto 0);
-    M_AXI_WVALID : out std_logic;
-    M_AXI_WREADY : in  std_logic;
-    M_AXI_BID : in  std_logic_vector(0 downto 0);
-    M_AXI_BRESP : in  std_logic_vector(1 downto 0);
-    M_AXI_BUSER  : in  std_logic_vector(0 downto 0);
-    M_AXI_BVALID : in  std_logic;
-    M_AXI_BREADY : out std_logic;
+
+    M_AXI_WDATA   : out std_logic_vector(31 downto 0);
+    M_AXI_WSTRB   : out std_logic_vector(3 downto 0);
+    M_AXI_WLAST   : out std_logic;
+    M_AXI_WUSER   : out std_logic_vector(0 downto 0);
+    M_AXI_WVALID  : out std_logic;
+    M_AXI_WREADY  : in  std_logic;
+
+    M_AXI_BID     : in  std_logic_vector(0 downto 0);
+    M_AXI_BRESP   : in  std_logic_vector(1 downto 0);
+    M_AXI_BUSER   : in  std_logic_vector(0 downto 0);
+    M_AXI_BVALID  : in  std_logic;
+    M_AXI_BREADY  : out std_logic;
 
     -- core observability
-    pc_q : out std_logic_vector(31 downto 0);
-    alu_y : out std_logic_vector(31 downto 0);
-    regA_q : out std_logic_vector(31 downto 0);
-    regB_q : out std_logic_vector(31 downto 0);
-    eyu_BRcond : inout std_logic_vector(2 downto 0);
+    pc_q        : out std_logic_vector(31 downto 0);
+    alu_y       : out std_logic_vector(31 downto 0);
+    regA_q      : out std_logic_vector(31 downto 0);
+    regB_q      : out std_logic_vector(31 downto 0);
+    eyu_BRcond  : inout std_logic_vector(2 downto 0);
     eyu_illegal : out std_logic
-    
-    --lsu
-    
-      );
+  );
 end fetch_connector;
 
 architecture Behavioral of fetch_connector is
-  signal s_start_read : std_logic := '0';
-  signal s_start_store : std_logic := '0';
-  signal s_read_done : std_logic := '0';
-  signal s_read_done_d1 : std_logic := '0';
-  signal s_error : std_logic := '0';
-  signal s_data : std_logic_vector(0 to 31) := (others => '0');
+  ---------------------------------------------------------------------------
+  -- FETCH handshake and instruction capture
+  ---------------------------------------------------------------------------
+  signal s_start_read     : std_logic := '0';
+  signal s_read_done      : std_logic := '0';
+  signal s_read_done_d1   : std_logic := '0';
+  signal s_error          : std_logic := '0';
+  signal s_data           : std_logic_vector(0 to 31) := (others => '0');
 
-  signal instr_c : std_logic_vector(31 downto 0) := (others => '0');
-  signal instr_r : std_logic_vector(31 downto 0) := (others => '0');
+  signal instr_c          : std_logic_vector(31 downto 0) := (others => '0');
+  signal instr_r          : std_logic_vector(31 downto 0) := (others => '0');
 
-  signal pc_s : std_logic_vector(31 downto 0);
-  signal eyu_BRcond_l : std_logic_vector(2 downto 0);
-  signal rstn_axi : std_logic;
-  signal exec_en : std_logic := '0';
-  signal inflight : std_logic := '0';
+  signal pc_s             : std_logic_vector(31 downto 0);
+  signal rstn_axi         : std_logic;
+  signal exec_en          : std_logic := '0';
+  signal inflight         : std_logic := '0';
+
+  -- connector <-> LSU signals
+  signal eyu_lsaddress    : std_logic_vector(31 downto 0);
+  signal eyu_store_data   : std_logic_vector(31 downto 0);
+  signal eyu_load_data_s  : std_logic_vector(31 downto 0);
+  signal eyu_func3        : std_logic_vector(2 downto 0);
+  signal eyu_isLOAD       : std_logic;
+  signal eyu_isSTORE      : std_logic;
+
+  -- stall + write-back gate during LSU activity
+  signal mem_active       : std_logic := '0';
+  signal eyu_wb_gate      : std_logic;
+
+  -- LSU handshake pulses
+  signal s_start_store    : std_logic := '0';
+  signal ls_ready         : std_logic;
+
+  ---------------------------------------------------------------------------
+  -- internal bus between FETCH and top (so we can mux with LSU)
+  ---------------------------------------------------------------------------
+  -- FETCH → bus
+  signal i_ARADDR         : std_logic_vector(31 downto 0);
+  signal i_ARVALID        : std_logic;
+  signal i_AWADDR         : std_logic_vector(31 downto 0);
+  signal i_AWVALID        : std_logic := '0';
+  signal i_WDATA          : std_logic_vector(31 downto 0) := (others => '0');
+  signal i_WSTRB          : std_logic_vector(3 downto 0)  := (others => '0');
+  signal i_WLAST          : std_logic := '0';
+  signal i_WVALID         : std_logic := '0';
+  signal i_BREADY         : std_logic := '0';
+  signal i_RREADY         : std_logic;
+
+  -- bus → FETCH
+  signal i_ARREADY        : std_logic;
+  signal i_RVALID         : std_logic;
+  signal i_RLAST          : std_logic;
+
+  -- LSU local AXI (d_*)
+  signal d_ARADDR         : std_logic_vector(31 downto 0);
+  signal d_ARVALID        : std_logic;
+  signal d_ARREADY        : std_logic;
+
+  signal d_RDATA          : std_logic_vector(31 downto 0);
+  signal d_RVALID         : std_logic;
+  signal d_RLAST          : std_logic;
+  signal d_RREADY         : std_logic;
+
+  signal d_AWADDR         : std_logic_vector(31 downto 0);
+  signal d_AWVALID        : std_logic;
+  signal d_AWREADY        : std_logic;
+
+  signal d_WDATA          : std_logic_vector(31 downto 0);
+  signal d_WSTRB          : std_logic_vector(3 downto 0);
+  signal d_WVALID         : std_logic;
+  signal d_WLAST          : std_logic;
+  signal d_WREADY         : std_logic;
+
+  signal d_BRESP          : std_logic_vector(1 downto 0);
+  signal d_BVALID         : std_logic;
+  signal d_BREADY         : std_logic;
+
 begin
-  -- AXI clk/rst outward
-  M_AXI_ACLK <= clk;
-  rstn_axi <= not reset;
+  ---------------------------------------------------------------------------
+  -- outward clock/reset mirrors
+  ---------------------------------------------------------------------------
+  M_AXI_ACLK    <= clk;
+  rstn_axi      <= not reset;
   M_AXI_ARESETN <= rstn_axi;
 
-  -- map 0..31 to 31:0
+  ---------------------------------------------------------------------------
+  -- map 0..31 → 31 downto 0 for the instruction
+  ---------------------------------------------------------------------------
   gen_map: for i in 0 to 31 generate
     instr_c(i) <= s_data(i);
   end generate;
 
-  -- your Lab-2 core glue (must accept exec_en)
+  ---------------------------------------------------------------------------
+  -- CONNECTOR (decoder + datapath).  Freeze PC during LSU (exec_en & mem_active).
+  -- Also pass the LSU ports we added earlier.
+  ---------------------------------------------------------------------------
   U_CORE: entity work.connector
     port map (
-      clk => clk,
-      reset => reset,
-      eyu => instr_r,
-      exec_en => exec_en,     -- 1-cycle per fetched instruction
-      pc_q => pc_s,
-      alu_y => alu_y,
-      regA_q => regA_q,
-      regB_q => regB_q,
+      clk         => clk,
+      reset       => reset,
+      eyu         => instr_r,
+      exec_en     => (exec_en and not mem_active),
+
+      pc_q        => pc_s,
+      alu_y       => alu_y,
+      regA_q      => regA_q,
+      regB_q      => regB_q,
       eyu_illegal => eyu_illegal,
-      eyu_BRcond => eyu_BRcond
+      eyu_BRcond  => eyu_BRcond,
+
+      -- LSU datapath/decoder wiring
+      eyu_lsaddress => eyu_lsaddress,   -- ALU result (rs1+imm)
+      eyu_store_data=> eyu_store_data,  -- rs2 value
+      eyu_load_data => eyu_load_data_s, -- back from LSU into WB mux
+      eyu_func3     => eyu_func3,       -- instr(14..12)
+      eyu_isLOAD    => eyu_isLOAD,
+      eyu_isSTORE   => eyu_isSTORE,
+      eyu_wb_gate   => (not mem_active) -- block reg write while LSU is active
     );
   pc_q <= pc_s;
 
-  -- fetch master
+  ---------------------------------------------------------------------------
+  -- FETCH master (unchanged logic, but connected to local i_* signals)
+  ---------------------------------------------------------------------------
   U_FETCH: entity work.entity_name
     generic map (
-      C_M_AXI_ID_WIDTH => 1,
-      C_M_AXI_ADDR_WIDTH => 32,
-      C_M_AXI_DATA_WIDTH => 32,
-      C_M_AXI_AWUSER_WIDTH => 1,
-      C_M_AXI_ARUSER_WIDTH => 1,
+      C_M_AXI_ID_WIDTH    => 1,
+      C_M_AXI_ADDR_WIDTH  => 32,
+      C_M_AXI_DATA_WIDTH  => 32,
+      C_M_AXI_AWUSER_WIDTH=> 1,
+      C_M_AXI_ARUSER_WIDTH=> 1,
       C_M_AXI_WUSER_WIDTH => 1,
       C_M_AXI_RUSER_WIDTH => 1,
       C_M_AXI_BUSER_WIDTH => 1
     )
     port map (
-      Start_read => s_start_read,
+      Start_read   => s_start_read,
       Read_address => pc_s,
-      Read_Done => s_read_done,
-      Read_Data => s_data,
-      Error => s_error,
-      M_AXI_ACLK => clk,
+      Read_Done    => s_read_done,
+      Read_Data    => s_data,
+      Error        => s_error,
+
+      M_AXI_ACLK    => clk,
       M_AXI_ARESETN => rstn_axi,
-      -- AR
-      M_AXI_ARID => M_AXI_ARID,    
-      M_AXI_ARADDR => M_AXI_ARADDR,
-      M_AXI_ARLEN => M_AXI_ARLEN,   
-      M_AXI_ARSIZE => M_AXI_ARSIZE,
-      M_AXI_ARBURST => M_AXI_ARBURST, 
-      M_AXI_ARLOCK => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE, 
-      M_AXI_ARPROT => M_AXI_ARPROT,
-      M_AXI_ARQOS => M_AXI_ARQOS,   
-      M_AXI_ARUSER => M_AXI_ARUSER,
-      M_AXI_ARVALID => M_AXI_ARVALID, 
-      M_AXI_ARREADY => M_AXI_ARREADY,
-      -- R
-      M_AXI_RID => M_AXI_RID,     
-      M_AXI_RDATA => M_AXI_RDATA,
-      M_AXI_RRESP => M_AXI_RRESP,   
-      M_AXI_RLAST => M_AXI_RLAST,
-      M_AXI_RUSER => M_AXI_RUSER,   
-      M_AXI_RVALID => M_AXI_RVALID,
-      M_AXI_RREADY => M_AXI_RREADY,
-      -- AW/W/B passthrough (unused)
-      M_AXI_AWID => M_AXI_AWID,    
-      M_AXI_AWADDR => M_AXI_AWADDR,
-      M_AXI_AWLEN => M_AXI_AWLEN,   
-      M_AXI_AWSIZE => M_AXI_AWSIZE,
-      M_AXI_AWBURST => M_AXI_AWBURST, 
-      M_AXI_AWLOCK => M_AXI_AWLOCK,
-      M_AXI_AWCACHE => M_AXI_AWCACHE, 
-      M_AXI_AWPROT => M_AXI_AWPROT,
-      M_AXI_AWQOS => M_AXI_AWQOS,   
-      M_AXI_AWUSER => M_AXI_AWUSER,
-      M_AXI_AWVALID => M_AXI_AWVALID, 
-      M_AXI_AWREADY => M_AXI_AWREADY,
-      M_AXI_WDATA => M_AXI_WDATA,   
-      M_AXI_WSTRB  => M_AXI_WSTRB,
-      M_AXI_WLAST => M_AXI_WLAST,   
-      M_AXI_WUSER  => M_AXI_WUSER,
-      M_AXI_WVALID => M_AXI_WVALID,  
-      M_AXI_WREADY => M_AXI_WREADY,
-      M_AXI_BID => M_AXI_BID,     
-      M_AXI_BRESP  => M_AXI_BRESP,
-      M_AXI_BUSER => M_AXI_BUSER,   
-      M_AXI_BVALID => M_AXI_BVALID,
-      M_AXI_BREADY => M_AXI_BREADY
-    );
-    
-    U_LOAD_STORE : entity work.load_store_unit
-    port map (
-      start_load => s_start_read,
-      Start_store => s_start_store,
-      address => pc_s,
-      store_data => s_data,
-      func3 => eyu_BRcond_l,
-      load_data => instr_r,
-      ls_ready => exec_en,
-      reset => reset,
-      M_AXI_ACLK => clk,
-      M_AXI_ARESETN => rstn_axi,
-      -- AR
-      M_AXI_ARID => M_AXI_ARID,    
-      M_AXI_ARADDR => M_AXI_ARADDR,
-      M_AXI_ARLEN => M_AXI_ARLEN,   
-      M_AXI_ARSIZE => M_AXI_ARSIZE,
-      M_AXI_ARBURST => M_AXI_ARBURST, 
-      M_AXI_ARLOCK => M_AXI_ARLOCK,
-      M_AXI_ARCACHE => M_AXI_ARCACHE, 
-      M_AXI_ARPROT => M_AXI_ARPROT,
-      M_AXI_ARQOS => M_AXI_ARQOS,   
-      M_AXI_ARUSER => M_AXI_ARUSER,
-      M_AXI_ARVALID => M_AXI_ARVALID, 
-      M_AXI_ARREADY => M_AXI_ARREADY,
-      -- R
-      M_AXI_RID => M_AXI_RID,     
-      M_AXI_RDATA => M_AXI_RDATA,
-      M_AXI_RRESP => M_AXI_RRESP,   
-      M_AXI_RLAST => M_AXI_RLAST,
-      M_AXI_RUSER => M_AXI_RUSER,   
-      M_AXI_RVALID => M_AXI_RVALID,
-      M_AXI_RREADY => M_AXI_RREADY,
-      -- AW/W/B passthrough (unused)
-      M_AXI_AWID => M_AXI_AWID,    
-      M_AXI_AWADDR => M_AXI_AWADDR,
-      M_AXI_AWLEN => M_AXI_AWLEN,   
-      M_AXI_AWSIZE => M_AXI_AWSIZE,
-      M_AXI_AWBURST => M_AXI_AWBURST, 
-      M_AXI_AWLOCK => M_AXI_AWLOCK,
-      M_AXI_AWCACHE => M_AXI_AWCACHE, 
-      M_AXI_AWPROT => M_AXI_AWPROT,
-      M_AXI_AWQOS => M_AXI_AWQOS,   
-      M_AXI_AWUSER => M_AXI_AWUSER,
-      M_AXI_AWVALID => M_AXI_AWVALID, 
-      M_AXI_AWREADY => M_AXI_AWREADY,
-      M_AXI_WDATA => M_AXI_WDATA,   
-      M_AXI_WSTRB  => M_AXI_WSTRB,
-      M_AXI_WLAST => M_AXI_WLAST,   
-      M_AXI_WUSER  => M_AXI_WUSER,
-      M_AXI_WVALID => M_AXI_WVALID,  
-      M_AXI_WREADY => M_AXI_WREADY,
-      M_AXI_BID => M_AXI_BID,     
-      M_AXI_BRESP  => M_AXI_BRESP,
-      M_AXI_BUSER => M_AXI_BUSER,   
-      M_AXI_BVALID => M_AXI_BVALID,
-      M_AXI_BREADY => M_AXI_BREADY
+
+      -- AR/R connect to local i_* (we'll mux to the top fabric below)
+      M_AXI_ARID    => M_AXI_ARID,      -- pass-through
+      M_AXI_ARADDR  => i_ARADDR,
+      M_AXI_ARLEN   => M_AXI_ARLEN,     -- pass-through constant from FETCH
+      M_AXI_ARSIZE  => M_AXI_ARSIZE,
+      M_AXI_ARBURST => M_AXI_ARBURST,
+      M_AXI_ARLOCK  => M_AXI_ARLOCK,
+      M_AXI_ARCACHE => M_AXI_ARCACHE,
+      M_AXI_ARPROT  => M_AXI_ARPROT,
+      M_AXI_ARQOS   => M_AXI_ARQOS,
+      M_AXI_ARUSER  => M_AXI_ARUSER,
+      M_AXI_ARVALID => i_ARVALID,
+      M_AXI_ARREADY => i_ARREADY,
+
+      M_AXI_RID     => M_AXI_RID,       -- fabric → TB
+      M_AXI_RDATA   => M_AXI_RDATA,
+      M_AXI_RRESP   => M_AXI_RRESP,
+      M_AXI_RLAST   => i_RLAST,
+      M_AXI_RUSER   => M_AXI_RUSER,
+      M_AXI_RVALID  => i_RVALID,
+      M_AXI_RREADY  => i_RREADY,
+
+      -- AW/W/B to local i_* (FETCH doesn't really write; keep them idle)
+      M_AXI_AWID    => M_AXI_AWID,      -- pass-through zeros
+      M_AXI_AWADDR  => i_AWADDR,
+      M_AXI_AWLEN   => M_AXI_AWLEN,
+      M_AXI_AWSIZE  => M_AXI_AWSIZE,
+      M_AXI_AWBURST => M_AXI_AWBURST,
+      M_AXI_AWLOCK  => M_AXI_AWLOCK,
+      M_AXI_AWCACHE => M_AXI_AWCACHE,
+      M_AXI_AWPROT  => M_AXI_AWPROT,
+      M_AXI_AWQOS   => M_AXI_AWQOS,
+      M_AXI_AWUSER  => M_AXI_AWUSER,
+      M_AXI_AWVALID => i_AWVALID,
+      M_AXI_AWREADY => '0',             -- TB keeps write path idle
+
+      M_AXI_WDATA   => i_WDATA,
+      M_AXI_WSTRB   => i_WSTRB,
+      M_AXI_WLAST   => i_WLAST,
+      M_AXI_WUSER   => M_AXI_WUSER,
+      M_AXI_WVALID  => i_WVALID,
+      M_AXI_WREADY  => '0',             -- TB keeps write path idle
+
+      M_AXI_BID     => M_AXI_BID,
+      M_AXI_BRESP   => M_AXI_BRESP,
+      M_AXI_BUSER   => M_AXI_BUSER,
+      M_AXI_BVALID  => '0',             -- no write responses in TB
+      M_AXI_BREADY  => i_BREADY
     );
 
-  -- start/done control: pulse exec_en on Read_Done rising edge
+  ---------------------------------------------------------------------------
+  -- LSU (hooked to connector signals; uses local d_* AXI that we mux out)
+  ---------------------------------------------------------------------------
+  U_LSU : entity work.load_store_unit
+    port map (
+      clk         => clk,
+      reset       => reset,
+
+      start_load  => (mem_active and eyu_isLOAD),   -- we pulse below
+      start_store => (mem_active and eyu_isSTORE),  -- we pulse below (see process)
+      ls_ready    => ls_ready,
+
+      address     => eyu_lsaddress,
+      store_data  => eyu_store_data,
+      load_data   => eyu_load_data_s,
+      func3       => eyu_func3,
+
+      -- AXI (data) – local d_*; arbitrated below to M_AXI_*
+      M_AXI_ARADDR  => d_ARADDR,
+      M_AXI_ARVALID => d_ARVALID,
+      M_AXI_ARREADY => d_ARREADY,
+      M_AXI_RDATA   => d_RDATA,
+      M_AXI_RVALID  => d_RVALID,
+      M_AXI_RLAST   => d_RLAST,
+      M_AXI_RREADY  => d_RREADY,
+
+      M_AXI_AWADDR  => d_AWADDR,
+      M_AXI_AWVALID => d_AWVALID,
+      M_AXI_AWREADY => d_AWREADY,
+      M_AXI_WDATA   => d_WDATA,
+      M_AXI_WSTRB   => d_WSTRB,
+      M_AXI_WVALID  => d_WVALID,
+      M_AXI_WLAST   => d_WLAST,
+      M_AXI_WREADY  => d_WREADY,
+      M_AXI_BRESP   => d_BRESP,
+      M_AXI_BVALID  => d_BVALID,
+      M_AXI_BREADY  => d_BREADY
+    );
+
+  ---------------------------------------------------------------------------
+  -- ARBITER: give bus to LSU while mem_active='1', else to FETCH
+  ---------------------------------------------------------------------------
+  -- READ address & ready
+  M_AXI_ARADDR  <= d_ARADDR  when mem_active='1' else i_ARADDR;
+  M_AXI_ARVALID <= d_ARVALID when mem_active='1' else i_ARVALID;
+  M_AXI_RREADY  <= d_RREADY  when mem_active='1' else i_RREADY;
+
+  -- read returns to the active client
+  d_ARREADY <= M_AXI_ARREADY when mem_active='1' else '0';
+  i_ARREADY <= M_AXI_ARREADY when mem_active='0' else '0';
+
+  d_RDATA   <= M_AXI_RDATA;
+  d_RVALID  <= M_AXI_RVALID when mem_active='1' else '0';
+  d_RLAST   <= M_AXI_RLAST  when mem_active='1' else '0';
+
+  i_RVALID  <= M_AXI_RVALID when mem_active='0' else '0';
+  i_RLAST   <= M_AXI_RLAST  when mem_active='0' else '0';
+
+  -- WRITE: only LSU uses them (FETCH i_* are idle)
+  M_AXI_AWADDR  <= d_AWADDR  when mem_active='1' else (others=>'0');
+  M_AXI_AWVALID <= d_AWVALID when mem_active='1' else '0';
+  d_AWREADY     <= M_AXI_AWREADY when mem_active='1' else '0';
+
+  M_AXI_WDATA   <= d_WDATA   when mem_active='1' else (others=>'0');
+  M_AXI_WSTRB   <= d_WSTRB   when mem_active='1' else (others=>'0');
+  M_AXI_WLAST   <= d_WLAST   when mem_active='1' else '0';
+  M_AXI_WVALID  <= d_WVALID  when mem_active='1' else '0';
+  d_WREADY      <= M_AXI_WREADY when mem_active='1' else '0';
+
+  M_AXI_BREADY  <= d_BREADY  when mem_active='1' else '0';
+  d_BRESP       <= M_AXI_BRESP;
+  d_BVALID      <= M_AXI_BVALID when mem_active='1' else '0';
+
+  -- fixed IDs/users (FETCH already drives ID/USER; constants are fine)
+  M_AXI_ARID    <= (others => '0');
+  M_AXI_ARLEN   <= (others => '0');
+  M_AXI_ARSIZE  <= "010";
+  M_AXI_ARBURST <= "01";
+  M_AXI_ARLOCK  <= '0';
+  M_AXI_ARCACHE <= "0010";
+  M_AXI_ARPROT  <= "000";
+  M_AXI_ARQOS   <= (others => '0');
+  M_AXI_ARUSER  <= (others => '0');
+
+  M_AXI_AWID    <= (others => '0');
+  M_AXI_AWLEN   <= (others => '0');
+  M_AXI_AWSIZE  <= "010";
+  M_AXI_AWBURST <= "01";
+  M_AXI_AWLOCK  <= '0';
+  M_AXI_AWCACHE <= "0010";
+  M_AXI_AWPROT  <= "000";
+  M_AXI_AWQOS   <= (others => '0');
+  M_AXI_AWUSER  <= (others => '0');
+
+  ---------------------------------------------------------------------------
+  -- FETCH issue logic + LSU start/finish logic
+  ---------------------------------------------------------------------------
+  eyu_wb_gate <= not mem_active;  -- block regfile write during LSU
+
   process(clk)
   begin
     if rising_edge(clk) then
       if reset='1' then
-        inflight <= '0';
-        s_start_read <= '0';
+        inflight       <= '0';
+        s_start_read   <= '0';
         s_read_done_d1 <= '0';
-        exec_en <= '0';
-        instr_r <= (others => '0');
+        exec_en        <= '0';
+        instr_r        <= (others => '0');
+        mem_active     <= '0';
+        s_start_store  <= '0';
       else
-        exec_en <= '0';                 -- default low
+        -- defaults
+        exec_en        <= '0';
+        s_start_read   <= '0';
+        s_start_store  <= '0';
         s_read_done_d1 <= s_read_done;
 
-        -- issue next read when nothing inflight
-        if inflight='0' then
-          s_start_read <= '1';
-          inflight <= '1';
-        else
-          s_start_read <= '0';
+        -- start LSU when a mem op is decoded and FETCH is idle
+        if (mem_active='0') and (eyu_isLOAD='1' or eyu_isSTORE='1') and (inflight='0') then
+          mem_active <= '1';
+          if eyu_isSTORE='1' then
+            s_start_store <= '1';
+          else
+            -- load
+            -- LSU start_load is driven by (mem_active and eyu_isLOAD) via U_LSU map
+            null;
+          end if;
         end if;
 
-        -- latch instruction + pulse execute on DONE edge
+        -- issue next instruction fetch only when not doing LSU
+        if (mem_active='0') and (inflight='0') then
+          s_start_read <= '1';
+          inflight     <= '1';
+        end if;
+
+        -- instruction arrives
         if (s_read_done='1') and (s_read_done_d1='0') then
           instr_r <= instr_c;
-          exec_en <= '1';
+          exec_en <= '1';       -- execute this instruction (1 cycle)
           inflight <= '0';
+        end if;
+
+        -- LSU completes
+        if ls_ready='1' then
+          mem_active <= '0';    -- release bus and WB gate
         end if;
       end if;
     end if;
