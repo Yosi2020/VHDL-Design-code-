@@ -1,137 +1,336 @@
-----------------------------------------------------------------------------------
--- Company: 
--- Engineer: 
--- 
--- Create Date: 09/23/2025 01:17:17 AM
--- Design Name: 
--- Module Name: connector - Behavioral
--- Project Name: 
--- Target Devices: 
--- Tool Versions: 
--- Description: 
--- 
--- Dependencies: 
--- 
--- Revision:
--- Revision 0.01 - File Created
--- Additional Comments:
--- 
-----------------------------------------------------------------------------------
+-- =====================================================================
+--  Top-level: fetch_connector.vhd
+--  Wires together:
+--   - FETCH (instruction AXI master, existing module)
+--   - CONNECTOR (decoder + datapath)
+--   - LSU (data AXI master)
+--   - SEQUENCER (tiny control FSM, assumed existing in your project)
+--  Exposes two AXI masters: i_* (instr) and d_* (data)
+-- =====================================================================
 
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.numeric_std.all;
-
--- Uncomment the following library declaration if using
--- arithmetic functions with Signed or Unsigned values
---use IEEE.NUMERIC_STD.ALL;
-
--- Uncomment the following library declaration if instantiating
--- any Xilinx leaf cells in this code.
---library UNISIM;
---use UNISIM.VComponents.all;
-
-entity connector is
-  Port ( 
+entity fetch_connector is
+  generic (
+    -- AXI widths
+    C_AXI_ADDR_WIDTH : integer := 32;
+    C_AXI_DATA_WIDTH : integer := 32;
+    C_AXI_ID_WIDTH   : integer := 1;
+    C_AXI_USER_WIDTH : integer := 1
+  );
+  port (
     clk   : in  std_logic;
     reset : in  std_logic;
-    eyu : in  std_logic_vector(31 downto 0);
-    exec_en : in std_logic;  -- 1-cycle execute enable
-    -- observability
+
+    -- ===================== INSTRUCTION AXI MASTER =====================
+    -- Read Address Channel
+    i_M_AXI_ARID    : out std_logic_vector(C_AXI_ID_WIDTH-1 downto 0);
+    i_M_AXI_ARADDR  : out std_logic_vector(C_AXI_ADDR_WIDTH-1 downto 0);
+    i_M_AXI_ARLEN   : out std_logic_vector(7 downto 0);
+    i_M_AXI_ARSIZE  : out std_logic_vector(2 downto 0);
+    i_M_AXI_ARBURST : out std_logic_vector(1 downto 0);
+    i_M_AXI_ARLOCK  : out std_logic;
+    i_M_AXI_ARCACHE : out std_logic_vector(3 downto 0);
+    i_M_AXI_ARPROT  : out std_logic_vector(2 downto 0);
+    i_M_AXI_ARQOS   : out std_logic_vector(3 downto 0);
+    i_M_AXI_ARUSER  : out std_logic_vector(C_AXI_USER_WIDTH-1 downto 0);
+    i_M_AXI_ARVALID : out std_logic;
+    i_M_AXI_ARREADY : in  std_logic;
+    -- Read Data Channel
+    i_M_AXI_RID     : in  std_logic_vector(C_AXI_ID_WIDTH-1 downto 0);
+    i_M_AXI_RDATA   : in  std_logic_vector(C_AXI_DATA_WIDTH-1 downto 0);
+    i_M_AXI_RRESP   : in  std_logic_vector(1 downto 0);
+    i_M_AXI_RLAST   : in  std_logic;
+    i_M_AXI_RUSER   : in  std_logic_vector(C_AXI_USER_WIDTH-1 downto 0);
+    i_M_AXI_RVALID  : in  std_logic;
+    i_M_AXI_RREADY  : out std_logic;
+    -- (Write channels present on some fetch IP; pass-through if exposed)
+    i_M_AXI_AWID    : out std_logic_vector(C_AXI_ID_WIDTH-1 downto 0);
+    i_M_AXI_AWADDR  : out std_logic_vector(C_AXI_ADDR_WIDTH-1 downto 0);
+    i_M_AXI_AWLEN   : out std_logic_vector(7 downto 0);
+    i_M_AXI_AWSIZE  : out std_logic_vector(2 downto 0);
+    i_M_AXI_AWBURST : out std_logic_vector(1 downto 0);
+    i_M_AXI_AWLOCK  : out std_logic;
+    i_M_AXI_AWCACHE : out std_logic_vector(3 downto 0);
+    i_M_AXI_AWPROT  : out std_logic_vector(2 downto 0);
+    i_M_AXI_AWQOS   : out std_logic_vector(3 downto 0);
+    i_M_AXI_AWUSER  : out std_logic_vector(C_AXI_USER_WIDTH-1 downto 0);
+    i_M_AXI_AWVALID : out std_logic;
+    -- Write Data
+    i_M_AXI_WDATA   : out std_logic_vector(C_AXI_DATA_WIDTH-1 downto 0);
+    i_M_AXI_WSTRB   : out std_logic_vector(C_AXI_DATA_WIDTH/8-1 downto 0);
+    i_M_AXI_WLAST   : out std_logic;
+    i_M_AXI_WUSER   : out std_logic_vector(C_AXI_USER_WIDTH-1 downto 0);
+    i_M_AXI_WVALID  : out std_logic;
+    i_M_AXI_WREADY  : in  std_logic;
+    -- Write Response
+    i_M_AXI_BID     : in  std_logic_vector(C_AXI_ID_WIDTH-1 downto 0);
+    i_M_AXI_BRESP   : in  std_logic_vector(1 downto 0);
+    i_M_AXI_BUSER   : in  std_logic_vector(C_AXI_USER_WIDTH-1 downto 0);
+    i_M_AXI_BVALID  : in  std_logic;
+    i_M_AXI_BREADY  : out std_logic;
+
+    -- ========================= DATA AXI MASTER ========================
+    -- Read Address
+    d_M_AXI_ARADDR  : out std_logic_vector(C_AXI_ADDR_WIDTH-1 downto 0);
+    d_M_AXI_ARVALID : out std_logic;
+    d_M_AXI_ARREADY : in  std_logic;
+    -- Read Data
+    d_M_AXI_RDATA   : in  std_logic_vector(C_AXI_DATA_WIDTH-1 downto 0);
+    d_M_AXI_RVALID  : in  std_logic;
+    d_M_AXI_RLAST   : in  std_logic;
+    d_M_AXI_RREADY  : out std_logic;
+    -- Write Address
+    d_M_AXI_AWADDR  : out std_logic_vector(C_AXI_ADDR_WIDTH-1 downto 0);
+    d_M_AXI_AWVALID : out std_logic;
+    d_M_AXI_AWREADY : in  std_logic;
+    -- Write Data
+    d_M_AXI_WDATA   : out std_logic_vector(C_AXI_DATA_WIDTH-1 downto 0);
+    d_M_AXI_WSTRB   : out std_logic_vector(C_AXI_DATA_WIDTH/8-1 downto 0);
+    d_M_AXI_WVALID  : out std_logic;
+    d_M_AXI_WLAST   : out std_logic;
+    d_M_AXI_WREADY  : in  std_logic;
+    -- Write Response
+    d_M_AXI_BRESP   : in  std_logic_vector(1 downto 0);
+    d_M_AXI_BVALID  : in  std_logic;
+    d_M_AXI_BREADY  : out std_logic;
+
+    -- ========= (Optional) Observability from connector/datapath =========
     pc_q   : out std_logic_vector(31 downto 0);
     alu_y  : out std_logic_vector(31 downto 0);
     regA_q : out std_logic_vector(31 downto 0);
-    regB_q : out std_logic_vector(31 downto 0);
-    eyu_illegal: out std_logic;
-    eyu_BRcond : out std_logic_vector(2 downto 0); -- new added 
-    
-    --LSU
-    eyu_lsaddress : out std_logic_vector(31 downto 0);
-    eyu_store_data : out std_logic_vector(31 downto 0);
-    eyu_load_data : in std_logic_vector(31 downto 0);
-    eyu_func3 : out std_logic_vector(2 downto 0);
-    eyu_isLOAD : out std_logic;
-    eyu_isSTORE : out std_logic
+    regB_q : out std_logic_vector(31 downto 0)
   );
-end connector;
+end fetch_connector;
 
-architecture Behavioral of connector is
-      -- wires from decoder
-      signal Asel_s, Bsel_s, Dsel_s : std_logic_vector(4 downto 0);
-      signal Dlen_s, PCAsel_s, IMMBsel_s, PCDsel_s, PCle_s, PCie_s, isBR_s : std_logic;
-      signal BRcond_s : std_logic_vector(2 downto 0);
-      signal ALUFunc_s: std_logic_vector(3 downto 0);
-      signal IMM_s    : std_logic_vector(31 downto 0);
-      signal PCle_g, PCie_g : std_logic;  -- gate enable to pc
-      signal eyu_branch_q : std_logic;
-      
-      -- for lsu
-      signal eyu_isLOAD_s : std_logic;
-      signal eyu_isSTORE_s : std_logic;
-      signal eyu_func3_s : std_logic_vector(2 downto 0);
-      signal eyu_branch_taken : std_logic;
+architecture rtl of fetch_connector is
+
+  -- ===================== FETCH <-> Sequencer signals ===================
+  signal eyu_start_fetch  : std_logic := '0';
+  signal eyu_instr_ready  : std_logic := '0';
+
+  -- The fetch block you showed outputs Read_Data as (0 to 31).
+  -- We'll adapt it to (31 downto 0) for the decoder.
+  signal eyu_read_data_asc : std_logic_vector(0 to 31);
+  signal eyu_instr_word    : std_logic_vector(31 downto 0);
+
+  -- ===================== Connector (Decoder+Datapath) ==================
+  signal exec_en     : std_logic := '1';  -- from sequencer to connector
+  signal eyu_illegal : std_logic;
+  signal eyu_BRcond  : std_logic_vector(2 downto 0);
+
+  -- LSU/decoder wires exposed by connector
+  signal eyu_lsaddress  : std_logic_vector(31 downto 0);
+  signal eyu_store_data : std_logic_vector(31 downto 0);
+  signal eyu_load_data  : std_logic_vector(31 downto 0);
+  signal eyu_func3      : std_logic_vector(2 downto 0);
+  signal eyu_isLOAD     : std_logic;
+  signal eyu_isSTORE    : std_logic;
+
+  -- ========================== LSU <-> Sequencer ========================
+  signal eyu_start_load  : std_logic := '0';
+  signal eyu_start_store : std_logic := '0';
+  signal eyu_ls_ready    : std_logic := '0';
+
+  -- ======================= AXI sidebands for DATA ======================
+  -- If your interconnect expects these on the data master, tie them here.
+  -- (Declare as signals/ports in your block design as needed.)
+  -- Example shows constants; omit if your fabric auto-ties them.
+  -- constant D_ARLEN   : std_logic_vector(7 downto 0) := (others => '0');
+  -- constant D_ARSIZE  : std_logic_vector(2 downto 0) := "010";
+  -- constant D_ARBURST : std_logic_vector(1 downto 0) := "01";
+  -- constant D_ARCACHE : std_logic_vector(3 downto 0) := "0010";
+  -- constant D_ARPROT  : std_logic_vector(2 downto 0) := "000";
+  -- Similarly for AW* if your fabric needs them visible externally.
+
 begin
-    eyu_BRcond <= BRcond_s;
-    eyu_branch_taken <= isBR_s and eyu_branch_q;
-    PCle_g <= exec_en and (PCle_s or eyu_branch_taken);
-    PCie_g <= exec_en and (PCie_s and not (PCle_s or eyu_branch_taken)); 
-    
-    -- for lsu
-    eyu_isLOAD <= eyu_isLOAD_s;
-    eyu_isSTORE <= eyu_isSTORE_s;
-    eyu_func3 <= eyu_func3_s;
-    
-    U_DEC : entity work.decoder
-    port map (
-      clk => clk,
-      eyu => eyu,
-      Asel => Asel_s,
-      Bsel => Bsel_s,
-      Dsel => Dsel_s,
-      Dlen => Dlen_s,
-      PCAsel => PCAsel_s,
-      IMMBsel => IMMBsel_s,
-      PCDsel => PCDsel_s,
-      PCle => PCle_s,
-      PCie => PCie_s,
-      isBR => isBR_s,
-      BRcond => BRcond_s,
-      ALUfunc => ALUFunc_s,
-      IMM => IMM_s,
-      eyu_illegal => eyu_illegal,
-      eyu_func3 => eyu_func3_s,
-      eyu_isLOAD => eyu_isLOAD_s,
-      eyu_isSTORE => eyu_isSTORE_s
-    ); 
+  -- ======================== Bit-order adapter ==========================
+  gen_copy_bits : for i in 0 to 31 generate
+  begin
+    eyu_instr_word(i) <= eyu_read_data_asc(i);
+  end generate;
 
-  U_DP : entity work.data_path
+  -- ===================== CONNECTOR (decoder + datapath) ================
+  connector_inst : entity work.connector
     port map (
-      clk => clk,
+      clk   => clk,
       reset => reset,
-      Asel => Asel_s,
-      Bsel => Bsel_s,
-      Dsel => Dsel_s,
-      Dlen => Dlen_s,
-      PCAsel => PCAsel_s,
-      IMMBsel => IMMBsel_s,
-      PCDsel => PCDsel_s,
-      PCle => PCle_g,
-      PCie => PCie_g,
-      isBR => isBR_s,
-      BRcond => BRcond_s,
-      ALUFunc => ALUFunc_s,
-      IMM => IMM_s,
-      pc_q => pc_q,
-      alu_y => alu_y,
+      eyu   => eyu_instr_word,
+      exec_en => exec_en,
+
+      -- Observability
+      pc_q   => pc_q,
+      alu_y  => alu_y,
       regA_q => regA_q,
       regB_q => regB_q,
-      branch_q => eyu_branch_q,
-      --lsu
+      eyu_illegal => eyu_illegal,
+      eyu_BRcond  => eyu_BRcond,
+
+      -- LSU / decoder exports up to top
       eyu_lsaddress => eyu_lsaddress,
       eyu_store_data => eyu_store_data,
-      eyu_load_data => eyu_load_data,
-      eyu_isLOAD => eyu_isLOAD_s
+      eyu_load_data  => eyu_load_data,
+      eyu_func3      => eyu_func3,
+      eyu_isLOAD     => eyu_isLOAD,
+      eyu_isSTORE    => eyu_isSTORE
     );
 
-end Behavioral;
+  -- ============================ FETCH (I-AXI) ==========================
+  -- NOTE: Replace 'entity_name' with YOUR fetch entity name if different.
+  fetch_inst : entity work.entity_name
+    generic map (
+      C_M_TARGET_SLAVE_BASE_ADDR => (others => '0'),
+      C_M_AXI_BURST_LEN          => 1,
+      C_M_AXI_ID_WIDTH           => C_AXI_ID_WIDTH,
+      C_M_AXI_ADDR_WIDTH         => C_AXI_ADDR_WIDTH,
+      C_M_AXI_DATA_WIDTH         => C_AXI_DATA_WIDTH,
+      C_M_AXI_AWUSER_WIDTH       => C_AXI_USER_WIDTH,
+      C_M_AXI_ARUSER_WIDTH       => C_AXI_USER_WIDTH,
+      C_M_AXI_WUSER_WIDTH        => C_AXI_USER_WIDTH,
+      C_M_AXI_RUSER_WIDTH        => C_AXI_USER_WIDTH,
+      C_M_AXI_BUSER_WIDTH        => C_AXI_USER_WIDTH
+    )
+    port map (
+      -- User side
+      Start_read   => eyu_start_fetch,      -- from sequencer
+      Read_address => pc_q,                 -- PC from datapath
+      Read_Done    => eyu_instr_ready,      -- to sequencer
+      Read_Data    => eyu_read_data_asc,    -- (0 to 31)
+      Error        => open,
+
+      -- Clocks/resets
+      M_AXI_ACLK   => clk,
+      M_AXI_ARESETN=> not reset,
+
+      -- AXI WRITE (Fetch keeps them tied internally; pass through)
+      M_AXI_AWID    => i_M_AXI_AWID,
+      M_AXI_AWADDR  => i_M_AXI_AWADDR,
+      M_AXI_AWLEN   => i_M_AXI_AWLEN,
+      M_AXI_AWSIZE  => i_M_AXI_AWSIZE,
+      M_AXI_AWBURST => i_M_AXI_AWBURST,
+      M_AXI_AWLOCK  => i_M_AXI_AWLOCK,
+      M_AXI_AWCACHE => i_M_AXI_AWCACHE,
+      M_AXI_AWPROT  => i_M_AXI_AWPROT,
+      M_AXI_AWQOS   => i_M_AXI_AWQOS,
+      M_AXI_AWUSER  => i_M_AXI_AWUSER,
+      M_AXI_AWVALID => i_M_AXI_AWVALID,
+      M_AXI_AWREADY => i_M_AXI_AWREADY,
+
+      M_AXI_WDATA   => i_M_AXI_WDATA,
+      M_AXI_WSTRB   => i_M_AXI_WSTRB,
+      M_AXI_WLAST   => i_M_AXI_WLAST,
+      M_AXI_WUSER   => i_M_AXI_WUSER,
+      M_AXI_WVALID  => i_M_AXI_WVALID,
+      M_AXI_WREADY  => i_M_AXI_WREADY,
+
+      M_AXI_BID     => i_M_AXI_BID,
+      M_AXI_BRESP   => i_M_AXI_BRESP,
+      M_AXI_BUSER   => i_M_AXI_BUSER,
+      M_AXI_BVALID  => i_M_AXI_BVALID,
+      M_AXI_BREADY  => i_M_AXI_BREADY,
+
+      -- AXI READ (instruction)
+      M_AXI_ARID    => i_M_AXI_ARID,
+      M_AXI_ARADDR  => i_M_AXI_ARADDR,
+      M_AXI_ARLEN   => i_M_AXI_ARLEN,
+      M_AXI_ARSIZE  => i_M_AXI_ARSIZE,
+      M_AXI_ARBURST => i_M_AXI_ARBURST,
+      M_AXI_ARLOCK  => i_M_AXI_ARLOCK,
+      M_AXI_ARCACHE => i_M_AXI_ARCACHE,
+      M_AXI_ARPROT  => i_M_AXI_ARPROT,
+      M_AXI_ARQOS   => i_M_AXI_ARQOS,
+      M_AXI_ARUSER  => i_M_AXI_ARUSER,
+      M_AXI_ARVALID => i_M_AXI_ARVALID,
+      M_AXI_ARREADY => i_M_AXI_ARREADY,
+
+      M_AXI_RID     => i_M_AXI_RID,
+      M_AXI_RDATA   => i_M_AXI_RDATA,
+      M_AXI_RRESP   => i_M_AXI_RRESP,
+      M_AXI_RLAST   => i_M_AXI_RLAST,
+      M_AXI_RUSER   => i_M_AXI_RUSER,
+      M_AXI_RVALID  => i_M_AXI_RVALID,
+      M_AXI_RREADY  => i_M_AXI_RREADY
+    );
+
+  -- ================================ LSU (D-AXI) ================================
+  lsu_inst : entity work.load_store_unit
+    port map (
+      clk   => clk,
+      reset => reset,
+
+      -- handshake with sequencer
+      start_load  => eyu_start_load,
+      start_store => eyu_start_store,
+      ls_ready    => eyu_ls_ready,
+
+      -- datapath/decoder from connector
+      address     => eyu_lsaddress,
+      store_data  => eyu_store_data,
+      load_data   => eyu_load_data,
+      func3       => eyu_func3,
+
+      -- AXI4 (DATA)
+      M_AXI_ARADDR  => d_M_AXI_ARADDR,
+      M_AXI_ARVALID => d_M_AXI_ARVALID,
+      M_AXI_ARREADY => d_M_AXI_ARREADY,
+      M_AXI_RDATA   => d_M_AXI_RDATA,
+      M_AXI_RVALID  => d_M_AXI_RVALID,
+      M_AXI_RLAST   => d_M_AXI_RLAST,
+      M_AXI_RREADY  => d_M_AXI_RREADY,
+
+      M_AXI_AWADDR  => d_M_AXI_AWADDR,
+      M_AXI_AWVALID => d_M_AXI_AWVALID,
+      M_AXI_AWREADY => d_M_AXI_AWREADY,
+      M_AXI_WDATA   => d_M_AXI_WDATA,
+      M_AXI_WSTRB   => d_M_AXI_WSTRB,
+      M_AXI_WVALID  => d_M_AXI_WVALID,
+      M_AXI_WLAST   => d_M_AXI_WLAST,
+      M_AXI_WREADY  => d_M_AXI_WREADY,
+      M_AXI_BRESP   => d_M_AXI_BRESP,
+      M_AXI_BVALID  => d_M_AXI_BVALID,
+      M_AXI_BREADY  => d_M_AXI_BREADY
+    );
+
+  -- ============================== SEQUENCER ==============================
+  -- NOTE: Replace ports/names below to match your real sequencer entity.
+  sequencer_inst : entity work.sequencer
+    port map (
+      clk   => clk,
+      reset => reset,
+
+      -- fetch handshake
+      eyu_start_fetch => eyu_start_fetch,
+      eyu_instr_ready => eyu_instr_ready,
+
+      -- memory op classification from connector/decoder
+      eyu_isLOAD  => eyu_isLOAD,
+      eyu_isSTORE => eyu_isSTORE,
+
+      -- LSU handshake
+      eyu_start_load  => eyu_start_load,
+      eyu_start_store => eyu_start_store,
+      eyu_ls_ready    => eyu_ls_ready,
+
+      -- connector gating (freeze PC during mem ops)
+      exec_en => exec_en
+      -- (If you added wb gating to connector, also expose eyu_wb_gate here)
+    );
+
+  -- =========================== DATA AXI SIDEBANDS ==========================
+  -- If your interconnect presents ARLEN/ARSIZE/etc. for the DATA master,
+  -- tie them in your block diagram or here (as extra top-level ports).
+  -- Example (uncomment if needed, and add to entity ports):
+  -- d_M_AXI_ARLEN   <= (others => '0');
+  -- d_M_AXI_ARSIZE  <= "010";
+  -- d_M_AXI_ARBURST <= "01";
+  -- d_M_AXI_ARCACHE <= "0010";
+  -- d_M_AXI_ARPROT  <= "000";
+  -- d_M_AXI_AWLEN   <= (others => '0');
+  -- d_M_AXI_AWSIZE  <= "010";
+  -- d_M_AXI_AWBURST <= "01";
+  -- d_M_AXI_AWCACHE <= "0010";
+  -- d_M_AXI_AWPROT  <= "000";
+
+end rtl;
