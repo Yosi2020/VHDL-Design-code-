@@ -74,8 +74,8 @@ architecture Behavioral of connector is
 begin
     eyu_BRcond <= BRcond_s;
     eyu_branch_taken <= isBR_s and eyu_branch_q;
-    PCie_g <= exec_en and (PCie_s or eyu_branch_taken);
-    PCle_g <= exec_en and (PCie_s and not eyu_branch_taken); 
+    PCle_g <= exec_en and (PCle_s or eyu_branch_taken);
+    PCie_g <= exec_en and (PCie_s and not (PCle_s or eyu_branch_taken)); 
     
     -- for lsu
     eyu_isLOAD <= eyu_isLOAD_s;
