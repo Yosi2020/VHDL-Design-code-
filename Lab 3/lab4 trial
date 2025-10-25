@@ -120,8 +120,10 @@ begin
        if rising_edge(eyu_aclk) then
            if eyu_aresetn='0' then
               eyu_arready_r <= '0'; 
-           else
+           elsif (eyu_have_req = '0') and (eyu_rvalid_r='0') then
               eyu_arready_r <= '1';
+           else 
+               eyu_arready_r <= '0';
            end if;
        end if;
     end process;
@@ -142,7 +144,11 @@ begin
               end if;
              if (eyu_have_req='1' and eyu_rvalid_r='0') then
                  eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
-                 eyu_rdata_r <= eyu_rom(eyu_idx);
+                 if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
+                      eyu_rdata_r <= eyu_rom(eyu_idx);
+                 else
+                      eyu_rdata_r <= (others => '0');
+                 end if;
                  eyu_rvalid_r <= '1';
                  eyu_have_req <= '0';
               elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
