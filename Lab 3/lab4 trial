@@ -1,323 +1,157 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 10/25/2025 12:30:45 AM
+-- Design Name: 
+-- Module Name: rom_model - Behavioral
+-- Project Name: 
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+use ieee.numeric_std.all;
 
-entity load_store_unit is
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity rom_model is
   generic (
-    l_C_M_TARGET_SLAVE_BASE_ADDR : std_logic_vector := x"00000000";
-    l_C_M_AXI_BURST_LEN          : integer := 1;
-    l_C_M_AXI_ID_WIDTH           : integer := 1;
-    l_C_M_AXI_ADDR_WIDTH         : integer := 32;
-    l_C_M_AXI_DATA_WIDTH         : integer := 32;
-    l_C_M_AXI_AWUSER_WIDTH       : integer := 1;
-    l_C_M_AXI_ARUSER_WIDTH       : integer := 1;
-    l_C_M_AXI_WUSER_WIDTH        : integer := 1;
-    l_C_M_AXI_RUSER_WIDTH        : integer := 1;
-    l_C_M_AXI_BUSER_WIDTH        : integer := 1
+  eyu_addr_width : integer := 32;
+  eyu_data_width : integer := 32;
+  eyu_mem_depth_word : integer := 1024
   );
-  port (
-    Start_load  : in  std_logic;  -- 1-cycle pulse to start a LOAD
-    Start_store : in  std_logic;  -- 1-cycle pulse to start a STORE
-    address     : in  std_logic_vector(l_C_M_AXI_ADDR_WIDTH-1 downto 0);
-    store_data  : in  std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0); -- CHANGED
-    func3       : in  std_logic_vector(2 downto 0);
-    load_data   : out std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0); -- CHANGED
-    ls_ready    : out std_logic;  -- 1-cycle done pulse (load or store)
-
-    -- AXI clock/reset
-    l_M_AXI_ACLK   : in  std_logic;
-    l_M_AXI_ARESETN: in  std_logic; -- active-low reset
-
-    -- AXI Write Address Channel
-    l_M_AXI_AWID   : out std_logic_vector(l_C_M_AXI_ID_WIDTH-1 downto 0);
-    l_M_AXI_AWADDR : out std_logic_vector(l_C_M_AXI_ADDR_WIDTH-1 downto 0);
-    l_M_AXI_AWLEN  : out std_logic_vector(7 downto 0);
-    l_M_AXI_AWSIZE : out std_logic_vector(2 downto 0);
-    l_M_AXI_AWBURST: out std_logic_vector(1 downto 0);
-    l_M_AXI_AWLOCK : out std_logic;
-    l_M_AXI_AWCACHE: out std_logic_vector(3 downto 0);
-    l_M_AXI_AWPROT : out std_logic_vector(2 downto 0);
-    l_M_AXI_AWQOS  : out std_logic_vector(3 downto 0);
-    l_M_AXI_AWUSER : out std_logic_vector(l_C_M_AXI_AWUSER_WIDTH-1 downto 0);
-    l_M_AXI_AWVALID: out std_logic;
-    l_M_AXI_AWREADY: in  std_logic;
-
-    -- AXI Write Data Channel
-    l_M_AXI_WDATA  : out std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0);
-    l_M_AXI_WSTRB  : out std_logic_vector(l_C_M_AXI_DATA_WIDTH/8-1 downto 0);
-    l_M_AXI_WLAST  : out std_logic;
-    l_M_AXI_WUSER  : out std_logic_vector(l_C_M_AXI_WUSER_WIDTH-1 downto 0);
-    l_M_AXI_WVALID : out std_logic;
-    l_M_AXI_WREADY : in  std_logic;
-
-    -- AXI Write Response Channel
-    --M_AXI_BID    : in  std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
-    l_M_AXI_BRESP  : in  std_logic_vector(1 downto 0);
-    --M_AXI_BUSER  : in  std_logic_vector(C_M_AXI_BUSER_WIDTH-1 downto 0);
-    l_M_AXI_BVALID : in  std_logic;
-    l_M_AXI_BREADY : out std_logic;
-
-    -- AXI Read Address Channel
-    -- M_AXI_ARID : out std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0); -- (unused)
-    l_M_AXI_ARADDR : out std_logic_vector(l_C_M_AXI_ADDR_WIDTH-1 downto 0);
-    l_M_AXI_ARLEN  : out std_logic_vector(7 downto 0);
-    l_M_AXI_ARSIZE : out std_logic_vector(2 downto 0);
-    l_M_AXI_ARBURST: out std_logic_vector(1 downto 0);
-    l_M_AXI_ARLOCK : out std_logic;
-    l_M_AXI_ARCACHE: out std_logic_vector(3 downto 0);
-    l_M_AXI_ARPROT : out std_logic_vector(2 downto 0);
-    l_M_AXI_ARQOS  : out std_logic_vector(3 downto 0);
-    l_M_AXI_ARUSER : out std_logic_vector(l_C_M_AXI_ARUSER_WIDTH-1 downto 0);
-    l_M_AXI_ARVALID: out std_logic;
-    l_M_AXI_ARREADY: in  std_logic;
-
-    -- AXI Read Data Channel
-    --M_AXI_RID    : in  std_logic_vector(C_M_AXI_ID_WIDTH-1 downto 0);
-    l_M_AXI_RDATA  : in  std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0);
-    --M_AXI_RRESP  : in  std_logic_vector(1 downto 0);
-    l_M_AXI_RLAST  : in  std_logic;
-    --M_AXI_RUSER  : in  std_logic_vector(C_M_AXI_RUSER_WIDTH-1 downto 0);
-    l_M_AXI_RVALID : in  std_logic;
-    l_M_AXI_RREADY : out std_logic
+  Port ( 
+  eyu_aclk : in std_logic;
+  eyu_aresetn : in std_logic;
+  eyu_s_araddr : in std_logic_vector(eyu_addr_width-1 downto 0);
+  eyu_s_arvalid : in std_logic;
+  eyu_s_arready : out std_logic;
+  eyu_s_rdata : out std_logic_vector(eyu_data_width-1 downto 0);
+  eyu_s_rresp : out std_logic_vector(1 downto 0);
+  eyu_s_rlast :out std_logic;
+  eyu_s_rvalid: out std_logic;
+  eyu_s_rready: in std_logic
   );
-end load_store_unit;
+end rom_model;
 
-architecture Behavioral of load_store_unit is
-  -- FIX: consistent state names & include READ_ADDR (was missing)
-  type ls_state_type is (IDLE, READ_ADDR, READ_DATA, WRITE_ADDR, WRITE_DATA, WRITE_RESP);
-  signal state : ls_state_type := IDLE;
-
-  -- Registered AXI outs (single driver; no concurrent duplicates)
-  signal araddr_r  : std_logic_vector(l_C_M_AXI_ADDR_WIDTH-1 downto 0) := (others => '0');
-  signal arvalid_r : std_logic := '0';
-  signal rready_r  : std_logic := '0';
-
-  signal awaddr_r  : std_logic_vector(l_C_M_AXI_ADDR_WIDTH-1 downto 0) := (others => '0');
-  signal awvalid_r : std_logic := '0';
-  signal wdata_r   : std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0) := (others => '0');
-  signal wstrb_r   : std_logic_vector(l_C_M_AXI_DATA_WIDTH/8-1 downto 0) := (others => '0');
-  signal wlast_r   : std_logic := '0';
-  signal wvalid_r  : std_logic := '0';
-  signal bready_r  : std_logic := '0';
-
-  signal load_data_r : std_logic_vector(l_C_M_AXI_DATA_WIDTH-1 downto 0) := (others => '0');
-  signal ls_ready_r  : std_logic := '0';
-
-  -- ADDED: helpers for laneing/sign-extend
-  function sext8(b : std_logic_vector(7 downto 0)) return std_logic_vector is
-    variable r : std_logic_vector(31 downto 0);
-  begin
-    r := (others => b(7)); r(7 downto 0) := b; return r;
-  end;
-
-  function sext16(h : std_logic_vector(15 downto 0)) return std_logic_vector is
-    variable r : std_logic_vector(31 downto 0);
-  begin
-    r := (others => h(15)); r(15 downto 0) := h; return r;
-  end;
-
-  -- ADDED: compute WSTRB by func3 + address lane
-  function wstrb_for(f3 : std_logic_vector(2 downto 0);
-                     addr : std_logic_vector) return std_logic_vector is
-    variable s : std_logic_vector(3 downto 0);
-  begin
-    case f3 is
-      when "010" => s := "1111";                             -- SW
-      when "001" => if addr(1)='0' then s := "0011"; else s := "1100"; end if; -- SH
-      when "000" =>                                         -- SB
-        case addr(1 downto 0) is
-          when "00" => s := "0001";
-          when "01" => s := "0010";
-          when "10" => s := "0100";
-          when others => s := "1000";
-        end case;
-      when others => s := "1111";
-    end case;
-    return s;
-  end;
-
-  -- ADDED: place byte/half into correct WDATA lane
-  function wdata_for(f3 : std_logic_vector(2 downto 0);
-                     din : std_logic_vector;
-                     addr: std_logic_vector) return std_logic_vector is
-    variable w : std_logic_vector(31 downto 0) := (others => '0');
-  begin
-    case f3 is
-      when "010" => w := din;                                -- SW
-      when "001" =>                                         -- SH
-        if addr(1)='0' then
-          w(15 downto 0) := din(15 downto 0);
-        else
-          w(31 downto 16) := din(15 downto 0);
-        end if;
-      when "000" =>                                         -- SB
-        case addr(1 downto 0) is
-          when "00" => w(7  downto 0)  := din(7 downto 0);
-          when "01" => w(15 downto 8)  := din(7 downto 0);
-          when "10" => w(23 downto 16) := din(7 downto 0);
-          when others => w(31 downto 24) := din(7 downto 0);
-        end case;
-      when others => w := din;
-    end case;
-    return w;
-  end;
-
-  -- ADDED: align & extend read data by func3 + address lane
-  function align_and_extend(f3 : std_logic_vector(2 downto 0);
-                            rdat: std_logic_vector;
-                            addr: std_logic_vector) return std_logic_vector is
-    variable res : std_logic_vector(31 downto 0) := (others => '0');
-    variable b   : std_logic_vector(7 downto 0);
-    variable h   : std_logic_vector(15 downto 0);
-  begin
-    case f3 is
-      when "010" => res := rdat;                             -- LW
-      when "000" =>                                         -- LB
-        case addr(1 downto 0) is
-          when "00" => b := rdat(7  downto 0);
-          when "01" => b := rdat(15 downto 8);
-          when "10" => b := rdat(23 downto 16);
-          when others => b := rdat(31 downto 24);
-        end case; res := sext8(b);
-      when "100" =>                                         -- LBU
-        case addr(1 downto 0) is
-          when "00" => res(7 downto 0) := rdat(7  downto 0);
-          when "01" => res(7 downto 0) := rdat(15 downto 8);
-          when "10" => res(7 downto 0) := rdat(23 downto 16);
-          when others => res(7 downto 0) := rdat(31 downto 24);
-        end case;
-      when "001" =>                                         -- LH
-        if addr(1)='0' then h := rdat(15 downto 0); else h := rdat(31 downto 16); end if;
-        res := sext16(h);
-      when "101" =>                                         -- LHU
-        if addr(1)='0' then res(15 downto 0) := rdat(15 downto 0);
-                       else res(15 downto 0) := rdat(31 downto 16); end if;
-      when others => res := rdat;
-    end case;
-    return res;
-  end;
+architecture Behavioral of rom_model is
+    subtype eyu_word_t is std_logic_vector(eyu_data_width-1 downto 0);
+    type eyu_rom_t is array (0 to eyu_mem_depth_word-1) of eyu_word_t;
+    
+    -- dataset
+    signal eyu_rom : eyu_rom_t := (
+    0 => x"93021000",
+    1 => x"33835200",
+    2 => x"B3135300",
+    3 => x"338E5340",
+    4 => x"B30E5040",
+    5 => x"332FD001",
+    6 => x"B33FD001",
+    7 => x"B3AA6200",
+    8 => x"333B0000",
+    9 => x"33C4CE01",
+    10 => x"B3545440",
+    11 => x"33595400",
+    12 => x"B3E95300",
+    13 => x"33FA7900",
+    14 => x"63846200",
+    15 => x"33000000",
+    16 => x"6384F201",
+    17 => x"33000000",
+    18 => x"6394F201",
+    19 => x"33000000",
+    20 => x"63946200",
+    21 => x"33000000",
+    22 => x"63440000",
+    23 => x"33000000",
+    24 => x"63C45E00",
+    25 => x"33000000",
+    26 => x"63D45E00",
+    27 => x"33000000",
+    28 => x"63540000",
+    29 => x"33000000",
+    30 => x"63E45E00",
+    31 => x"33000000",
+    32 => x"63E4D201",
+    33 => x"33000000",
+    34 => x"63F4D201",
+    35 => x"33000000",
+    36 => x"63F45E00",
+    37 => x"33000000",
+    38 => x"33000000",
+    others => (others => '0')
+    );
+    
+    signal eyu_arready_r : std_logic:= '0';
+    signal eyu_rvalid_r : std_logic := '0';
+    signal eyu_rdata_r : std_logic_vector(eyu_data_width-1 downto 0) := (others=>'0');
+    
+    signal eyu_araddr_r : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0');
+    signal eyu_have_req : std_logic := '0';
 
 begin
-  ----------------------------------------------------------------------------
-  -- Constant sidebands (OK as concurrent assigns; not re-driven in FSM)
-  ----------------------------------------------------------------------------
-  l_M_AXI_ARLEN   <= (others => '0');
-  l_M_AXI_ARSIZE  <= "010";   -- 4 bytes
-  l_M_AXI_ARBURST <= "01";    -- INCR
-  l_M_AXI_ARLOCK  <= '0';
-  l_M_AXI_ARCACHE <= "0010";  -- FIX: typical normal, modifiable, bufferable
-  l_M_AXI_ARPROT  <= "000";
-  l_M_AXI_ARQOS   <= (others => '0');
-  l_M_AXI_ARUSER  <= (others => '0');
-
-  l_M_AXI_AWID    <= (others => '0');
-  l_M_AXI_AWLEN   <= (others => '0');
-  l_M_AXI_AWSIZE  <= "010";
-  l_M_AXI_AWBURST <= "01";
-  l_M_AXI_AWLOCK  <= '0';
-  l_M_AXI_AWCACHE <= "0010";  -- FIX: typical setting
-  l_M_AXI_AWPROT  <= "000";
-  l_M_AXI_AWQOS   <= (others => '0');
-  l_M_AXI_AWUSER  <= (others => '0');
-
-  ----------------------------------------------------------------------------
-  -- Registered outs (single driver)
-  ----------------------------------------------------------------------------
-  l_M_AXI_ARADDR  <= araddr_r;
-  l_M_AXI_ARVALID <= arvalid_r;
-  l_M_AXI_RREADY  <= rready_r;
-
-  l_M_AXI_AWADDR  <= awaddr_r;
-  l_M_AXI_AWVALID <= awvalid_r;
-  l_M_AXI_WDATA   <= wdata_r;
-  l_M_AXI_WSTRB   <= wstrb_r;
-  l_M_AXI_WLAST   <= wlast_r;
-  l_M_AXI_WVALID  <= wvalid_r;
-  l_M_AXI_BREADY  <= bready_r;
-
-  load_data     <= load_data_r;
-  ls_ready      <= ls_ready_r;
-
-  ----------------------------------------------------------------------------
-  -- Main FSM (clock/reset)
-  ----------------------------------------------------------------------------
-  process(l_M_AXI_ACLK)
-  begin
-    if rising_edge(l_M_AXI_ACLK) then
-      -- FIX: M_AXI_ARESETN is active-LOW
-      if l_M_AXI_ARESETN = '0' then
-        state      <= IDLE;
-        arvalid_r  <= '0'; rready_r  <= '0';
-        awvalid_r  <= '0'; wvalid_r  <= '0'; wlast_r <= '0'; bready_r <= '0';
-        ls_ready_r <= '0';
-      else
-        -- default (one-cycle done pulse)
-        ls_ready_r <= '0';
-
-        case state is
-          when IDLE =>
-            if Start_load = '1' then
-              -- begin LOAD
-              araddr_r  <= address;
-              arvalid_r <= '1';
-              rready_r  <= '0';
-              state     <= READ_ADDR;  -- ADDED
-            elsif Start_store = '1' then
-              -- begin STORE
-              awaddr_r  <= address;
-              awvalid_r <= '1';
-              wdata_r   <= wdata_for(func3, store_data, address);  -- ADDED
-              wstrb_r   <= wstrb_for(func3, address);              -- ADDED
-              wlast_r   <= '1';
-              wvalid_r  <= '0';
-              bready_r  <= '0';
-              state     <= WRITE_ADDR;                              -- ADDED (was missing)
-            end if;
-
-          when READ_ADDR =>                                         -- ADDED
-            if l_M_AXI_ARREADY = '1' then
-              arvalid_r <= '0';
-              rready_r  <= '1';
-              state     <= READ_DATA;
-            end if;
-
-          when READ_DATA =>
-            if l_M_AXI_RVALID = '1' then
-              -- ADDED: align by address + func3
-              load_data_r <= align_and_extend(func3, l_M_AXI_RDATA, address);
-              if l_M_AXI_RLAST = '1' then
-                rready_r   <= '0';
-                ls_ready_r <= '1';
-                state      <= IDLE;
+    eyu_s_arready <= eyu_arready_r;
+    eyu_s_rvalid <= eyu_rvalid_r;
+    eyu_s_rdata <= eyu_rdata_r;
+    
+    eyu_s_rresp <= "00";
+    eyu_s_rlast <= '1';
+    
+    process(eyu_aclk)
+    begin
+       if rising_edge(eyu_aclk) then
+           if eyu_aresetn='0' then
+              eyu_arready_r <= '0'; 
+           else
+              eyu_arready_r <= '1';
+           end if;
+       end if;
+    end process;
+    
+    process(eyu_aclk)
+        variable eyu_idx : integer;
+    begin
+        if rising_edge(eyu_aclk) then
+           if eyu_aresetn='0' then
+              eyu_rvalid_r <= '0';
+              eyu_rdata_r <= (others=>'0');
+              eyu_have_req <= '0';
+              eyu_araddr_r <= (others => '0');
+            else 
+              if eyu_s_arvalid='1' and eyu_arready_r='1' then
+                 eyu_araddr_r <= eyu_s_araddr;
+                 eyu_have_req <= '1';
               end if;
+             if (eyu_have_req='1' and eyu_rvalid_r='0') then
+                 eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
+                 eyu_rdata_r <= eyu_rom(eyu_idx);
+                 eyu_rvalid_r <= '1';
+                 eyu_have_req <= '0';
+              elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
+                  eyu_rvalid_r <= '0';
+             end if;
             end if;
+          end if;
+    end process;
+    
 
-          when WRITE_ADDR =>
-            if l_M_AXI_AWREADY = '1' then
-              awvalid_r <= '0';
-              wvalid_r  <= '1';
-              state     <= WRITE_DATA;
-            end if;
-
-          when WRITE_DATA =>
-            if l_M_AXI_WREADY = '1' then
-              wvalid_r <= '0';
-              bready_r <= '1';
-              state    <= WRITE_RESP;
-            end if;
-
-          when WRITE_RESP =>
-            if l_M_AXI_BVALID = '1' then
-              bready_r  <= '0';
-              ls_ready_r<= '1';
-              state     <= IDLE;
-            end if;
-
-          when others =>                                           -- ADDED
-            state <= IDLE;
-        end case;
-      end if;
-    end if;
-  end process;
 
 end Behavioral;
