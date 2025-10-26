@@ -1,151 +1,95 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
-entity eyu_fc_rom_tb is end;
-architecture sim of eyu_fc_rom_tb is
-  constant EYU_TCK : time := 10 ns;
+entity rom_model is
+  generic (
+    eyu_addr_width      : integer := 32;
+    eyu_data_width      : integer := 32;
+    eyu_mem_depth_word  : integer := 1024
+  );
+  port (
+    -- clock/reset (from connector top)
+    eyu_aclk     : in  std_logic;
+    eyu_aresetn  : in  std_logic;
 
-  -- TB clock/reset
-  signal eyu_clk    : std_logic := '0';
-  signal eyu_reset  : std_logic := '0';
+    -- AXI-lite READ-only slave side
+    eyu_s_araddr  : in  std_logic_vector(eyu_addr_width-1 downto 0);
+    eyu_s_arvalid : in  std_logic;
+    eyu_s_arready : out std_logic;
 
-  -- AXI wires at the fetch_connector top (shared by fetch+LSU)
-  signal d_M_AXI_ACLK    : std_logic;
-  signal d_M_AXI_ARESETN : std_logic;
+    eyu_s_rdata   : out std_logic_vector(eyu_data_width-1 downto 0);
+    eyu_s_rresp   : out std_logic_vector(1 downto 0);
+    eyu_s_rlast   : out std_logic;
+    eyu_s_rvalid  : out std_logic;
+    eyu_s_rready  : in  std_logic
+  );
+end rom_model;
 
-  signal d_M_AXI_ARID    : std_logic_vector(0 downto 0);
-  signal d_M_AXI_ARADDR  : std_logic_vector(31 downto 0);
-  signal d_M_AXI_ARLEN   : std_logic_vector(7 downto 0);
-  signal d_M_AXI_ARSIZE  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_ARBURST : std_logic_vector(1 downto 0);
-  signal d_M_AXI_ARLOCK  : std_logic;
-  signal d_M_AXI_ARCACHE : std_logic_vector(3 downto 0);
-  signal d_M_AXI_ARPROT  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_ARQOS   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_ARUSER  : std_logic_vector(0 downto 0);
-  signal d_M_AXI_ARVALID : std_logic;
-  signal d_M_AXI_ARREADY : std_logic;
+architecture Behavioral of rom_model is
+  -- 32-bit word memory
+  type mem_t is array (0 to eyu_mem_length-1) of std_logic_vector(31 downto 0);
+  -- *** FILL with your words; first entry must be valid (not 0) ***
+  signal rom : mem_t := (
+    0  => x"93021000",  -- example word 0
+    1  => x"3385200B",
+    2  => x"31353003",
+    3  => x"38E5340B",
+    4  => x"30E50403",
+    5  => x"32FD001B",
+    6  => x"33FD001B",
+    7  => x"00003AAA",
+    others => (others => '0')
+  );
 
-  signal d_M_AXI_RID     : std_logic_vector(0 downto 0);
-  signal d_M_AXI_RDATA   : std_logic_vector(31 downto 0);
-  signal d_M_AXI_RRESP   : std_logic_vector(1 downto 0);
-  signal d_M_AXI_RLAST   : std_logic;
-  signal d_M_AXI_RUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_RVALID  : std_logic;
-  signal d_M_AXI_RREADY  : std_logic;
-
-  -- write channel (unused for fetch-only test) – tie to dummies
-  signal d_M_AXI_AWID    : std_logic_vector(0 downto 0);
-  signal d_M_AXI_AWADDR  : std_logic_vector(31 downto 0);
-  signal d_M_AXI_AWLEN   : std_logic_vector(7 downto 0);
-  signal d_M_AXI_AWSIZE  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_AWBURST : std_logic_vector(1 downto 0);
-  signal d_M_AXI_AWLOCK  : std_logic;
-  signal d_M_AXI_AWCACHE : std_logic_vector(3 downto 0);
-  signal d_M_AXI_AWPROT  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_AWQOS   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_AWUSER  : std_logic_vector(0 downto 0);
-  signal d_M_AXI_AWVALID : std_logic;
-  signal d_M_AXI_AWREADY : std_logic;
-  signal d_M_AXI_WDATA   : std_logic_vector(31 downto 0);
-  signal d_M_AXI_WSTRB   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_WLAST   : std_logic;
-  signal d_M_AXI_WUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_WVALID  : std_logic;
-  signal d_M_AXI_WREADY  : std_logic;
-  signal d_M_AXI_BID     : std_logic_vector(0 downto 0);
-  signal d_M_AXI_BRESP   : std_logic_vector(1 downto 0);
-  signal d_M_AXI_BUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_BVALID  : std_logic;
-  signal d_M_AXI_BREADY  : std_logic;
-
-  -- observability
-  signal pc_q, alu_y, regA_q, regB_q : std_logic_vector(31 downto 0);
-  signal eyu_BRcond : std_logic_vector(2 downto 0);
-  signal eyu_illegal: std_logic;
+  -- ADDED: registered handshake signals (do NOT read outputs directly)
+  signal araddr_r   : std_logic_vector(eyu_addr_width-1 downto 0) := (others => '0'); -- ADDED
+    -- handshake regs
+  signal arready_r  : std_logic := '0';   -- ADDED
+  signal rvalid_r   : std_logic := '0';   -- ADDED
+  signal rdata_r    : std_logic_vector(31 downto 0) := (others => '0'); -- ADDED
 
 begin
-  -- clock/reset
-  eyu_clk <= not eyu_clk after EYU_TCK/2;
-  process begin
-    eyu_reset <= '1'; wait for 100 ns; eyu_reset <= '0'; wait;
-  end process;
+  -- fixed sidebands
+  eyu_s_rlast <= '1';
+  eyu_s_rresp <= "00";
 
-  -- DUT: your fetch_connector
-  U_TOP: entity work.fetch_connector
-    port map (
-      clk=>eyu_clk, reset=>eyu_reset,
+  -- drive outs from regs
+  eyu_s_arready <= arready_r;     -- ADDED
+  eyu_s_rvalid  <= rvalid_r;      -- ADDED
+  eyu_s_rdata   <= rdata_r;       -- ADDED
 
-      d_M_AXI_ACLK    => d_M_AXI_ACLK,
-      d_M_AXI_ARESETN => d_M_AXI_ARESETN,
-
-      d_M_AXI_ARID    => d_M_AXI_ARID,
-      d_M_AXI_ARADDR  => d_M_AXI_ARADDR,
-      d_M_AXI_ARLEN   => d_M_AXI_ARLEN,
-      d_M_AXI_ARSIZE  => d_M_AXI_ARSIZE,
-      d_M_AXI_ARBURST => d_M_AXI_ARBURST,
-      d_M_AXI_ARLOCK  => d_M_AXI_ARLOCK,
-      d_M_AXI_ARCACHE => d_M_AXI_ARCACHE,
-      d_M_AXI_ARPROT  => d_M_AXI_ARPROT,
-      d_M_AXI_ARQOS   => d_M_AXI_ARQOS,
-      d_M_AXI_ARUSER  => d_M_AXI_ARUSER,
-      d_M_AXI_ARVALID => d_M_AXI_ARVALID,
-      d_M_AXI_ARREADY => d_M_AXI_ARREADY,
-
-      d_M_AXI_RID     => d_M_AXI_RID,
-      d_M_AXI_RDATA   => d_M_AXI_RDATA,
-      d_M_AXI_RRESP   => d_M_AXI_RRESP,
-      d_M_AXI_RLAST   => d_M_AXI_RLAST,
-      d_M_AXI_RUSER   => d_M_AXI_RUSER,
-      d_M_AXI_RVALID  => d_M_AXI_RVALID,
-      d_M_AXI_RREADY  => d_M_AXI_RREADY,
-
-      d_M_AXI_AWID    => open,   d_M_AXI_AWADDR => open, d_M_AXI_AWLEN => open,
-      d_M_AXI_AWSIZE  => open,   d_M_AXI_AWBURST=> open, d_M_AXI_AWLOCK=> open,
-      d_M_AXI_AWCACHE => open,   d_M_AXI_AWPROT => open, d_M_AXI_AWQOS => open,
-      d_M_AXI_AWUSER  => open,   d_M_AXI_AWVALID=> open, d_M_AXI_AWREADY=> d_M_AXI_AWREADY,
-
-      d_M_AXI_WDATA   => open,   d_M_AXI_WSTRB  => open, d_M_AXI_WLAST  => open,
-      d_M_AXI_WUSER   => open,   d_M_AXI_WVALID => open, d_M_AXI_WREADY => d_M_AXI_WREADY,
-
-      d_M_AXI_BID     => d_M_AXI_BID, d_M_AXI_BRESP=> d_M_AXI_BRESP,
-      d_M_AXI_BUSER   => d_M_AXI_BUSER, d_M_AXI_BVALID=> d_M_AXI_BVALID, d_M_AXI_BREADY=> open,
-
-      pc_q=>pc_q, alu_y=>alu_y, regA_q=>regA_q, regB_q=>regB_q,
-      eyu_BRcond=>eyu_BRcond, eyu_illegal=>eyu_illegal
-    );
-
-  -- ROM model hooked to the SAME AXI read pins
-  U_ROM: entity work.rom_model
-    generic map (eyu_addr_width=>32, eyu_data_width=>32, eyu_mem_depth_word=>1024)
-    port map (
-      eyu_aclk      => d_M_AXI_ACLK,       -- driven by connector (out)
-      eyu_aresetn   => d_M_AXI_ARESETN,    -- driven by connector (out)
-      eyu_s_araddr  => d_M_AXI_ARADDR,
-      eyu_s_arvalid => d_M_AXI_ARVALID,
-      eyu_s_arready => d_M_AXI_ARREADY,
-      eyu_s_rdata   => d_M_AXI_RDATA,
-      eyu_s_rresp   => d_M_AXI_RRESP,
-      eyu_s_rlast   => d_M_AXI_RLAST,
-      eyu_s_rvalid  => d_M_AXI_RVALID,
-      eyu_s_rready  => d_M_AXI_RREADY
-    );
-
-  -- simple check: first fetch returns ROM(0)
-  process
+  process(eyu_clk)
+    variable idx : integer;
   begin
-    wait for 400 ns; -- allow connector to auto-kick its first fetch
-    -- at the first RVALID & RREADY, RDATA must equal your first ROM word (x"93021000")
-    if (d_M_AXI_RVALID = '1' and d_M_AXI_RREADY = '1') then
-      assert d_M_AXI_RDATA = x"93021000"
-        report "FETCH mismatch: expected 0x93021000, got " & to_hstring(d_M_AXI_RDATA)
-        severity failure;
-      report "fetch_connector + rom_model PASS ✅" severity note;
-      wait for 50 ns; std.env.stop;
-    else
-      wait for 200 ns;  -- give it more cycles if needed
+    if rising_edge(eyu_clk) then
+      if eyu_aresetn = '0' then
+        -- ADDED: synchronous reset
+        arready_r <= '0';
+        rvalid_r  <= '0';
+        rdata_r   <= (others => '0');
+      else
+        -- ADDED: default
+        if rvalid_r = '1' and eyu_s_rready = '1' then
+          rvalid_r <= '0';
+        end if;
+
+        -- ADDED: accept address only when not outputting a beat
+        if (arready_r = '1' and eyu_s_arvalid = '1') then
+          arready_r <= '0';
+          araddr_r  <= eyu_s_araddr;
+          -- prepare data and present next cycle
+          idx := to_integer(unsigned(eyu_s_araddr(eyu_addr_width-1 downto 2)));
+          if idx < eyu_mem_length then
+            rdata_r <= rom(idx);
+          else
+            rdata_r <= (others => '0');
+          end if;
+          rvalid_r <= '1';
+        elsif rvalid_r = '0' then
+          arready_r <= '1';
+        end if;
+      end if;
     end if;
   end process;
-
-end architecture;
+end;
