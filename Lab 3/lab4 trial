@@ -1,179 +1,165 @@
-library ieee;
-use ieee.std_logic_1164.all;
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 10/25/2025 12:30:45 AM
+-- Design Name: 
+-- Module Name: rom_model - Behavioral
+-- Project Name: 
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
 use ieee.numeric_std.all;
 
-entity eyu_fc_rom_tb is end;
-architecture sim of eyu_fc_rom_tb is
-  constant TCK : time := 10 ns;
-  signal clk   : std_logic := '0';
-  signal reset : std_logic := '1';
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
 
-  -- AXI outward (same ports as fetch_connector)
-  signal d_M_AXI_ACLK    : std_logic;
-  signal d_M_AXI_ARESETN : std_logic;
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
 
-  -- READ address/data
-  signal d_M_AXI_ARID    : std_logic_vector(0 downto 0);
-  signal d_M_AXI_ARADDR  : std_logic_vector(31 downto 0);
-  signal d_M_AXI_ARLEN   : std_logic_vector(7 downto 0);
-  signal d_M_AXI_ARSIZE  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_ARBURST : std_logic_vector(1 downto 0);
-  signal d_M_AXI_ARLOCK  : std_logic;
-  signal d_M_AXI_ARCACHE : std_logic_vector(3 downto 0);
-  signal d_M_AXI_ARPROT  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_ARQOS   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_ARUSER  : std_logic_vector(0 downto 0);
-  signal d_M_AXI_ARVALID : std_logic;
-  signal d_M_AXI_ARREADY : std_logic;
+entity rom_model is
+  generic (
+  eyu_addr_width : integer := 32;
+  eyu_data_width : integer := 32;
+  eyu_mem_depth_word : integer := 1024
+  );
+  Port ( 
+  eyu_aclk : in std_logic;
+  eyu_aresetn : in std_logic;
+  eyu_s_araddr : in std_logic_vector(eyu_addr_width-1 downto 0);
+  eyu_s_arvalid : in std_logic;
+  eyu_s_arready : out std_logic;
+  eyu_s_rdata : out std_logic_vector(eyu_data_width-1 downto 0);
+  eyu_s_rresp : out std_logic_vector(1 downto 0);
+  eyu_s_rlast :out std_logic;
+  eyu_s_rvalid: out std_logic;
+  eyu_s_rready: in std_logic
+  );
+end rom_model;
 
-  signal d_M_AXI_RID     : std_logic_vector(0 downto 0);
-  signal d_M_AXI_RDATA   : std_logic_vector(31 downto 0);
-  signal d_M_AXI_RRESP   : std_logic_vector(1 downto 0);
-  signal d_M_AXI_RLAST   : std_logic;
-  signal d_M_AXI_RUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_RVALID  : std_logic;
-  signal d_M_AXI_RREADY  : std_logic;
+architecture Behavioral of rom_model is
+    subtype eyu_word_t is std_logic_vector(eyu_data_width-1 downto 0);
+    type eyu_rom_t is array (0 to eyu_mem_depth_word-1) of eyu_word_t;
+    
+    -- dataset
+    signal eyu_rom : eyu_rom_t := (
+    0 => x"93021000",
+    1 => x"33835200",
+    2 => x"B3135300",
+    3 => x"338E5340",
+    4 => x"B30E5040",
+    5 => x"332FD001",
+    6 => x"B33FD001",
+    7 => x"B3AA6200",
+    8 => x"333B0000",
+    9 => x"33C4CE01",
+    10 => x"B3545440",
+    11 => x"33595400",
+    12 => x"B3E95300",
+    13 => x"33FA7900",
+    14 => x"63846200",
+    15 => x"33000000",
+    16 => x"6384F201",
+    17 => x"33000000",
+    18 => x"6394F201",
+    19 => x"33000000",
+    20 => x"63946200",
+    21 => x"33000000",
+    22 => x"63440000",
+    23 => x"33000000",
+    24 => x"63C45E00",
+    25 => x"33000000",
+    26 => x"63D45E00",
+    27 => x"33000000",
+    28 => x"63540000",
+    29 => x"33000000",
+    30 => x"63E45E00",
+    31 => x"33000000",
+    32 => x"63E4D201",
+    33 => x"33000000",
+    34 => x"63F4D201",
+    35 => x"33000000",
+    36 => x"63F45E00",
+    37 => x"33000000",
+    38 => x"33000000",
+    others => (others => '0')
+    );
+    
+    
+    
+    signal eyu_arready_r : std_logic:= '0';
+    signal eyu_rvalid_r : std_logic := '0';
+    signal eyu_rdata_r : std_logic_vector(eyu_data_width-1 downto 0) := (others=>'0');
+    
+    signal eyu_araddr_r : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0');
+    signal eyu_have_req : std_logic := '0';
 
-  -- WRITE address/data/resp
-  signal d_M_AXI_AWID    : std_logic_vector(0 downto 0);
-  signal d_M_AXI_AWADDR  : std_logic_vector(31 downto 0);
-  signal d_M_AXI_AWLEN   : std_logic_vector(7 downto 0);
-  signal d_M_AXI_AWSIZE  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_AWBURST : std_logic_vector(1 downto 0);
-  signal d_M_AXI_AWLOCK  : std_logic;
-  signal d_M_AXI_AWCACHE : std_logic_vector(3 downto 0);
-  signal d_M_AXI_AWPROT  : std_logic_vector(2 downto 0);
-  signal d_M_AXI_AWQOS   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_AWUSER  : std_logic_vector(0 downto 0);
-  signal d_M_AXI_AWVALID : std_logic;
-  signal d_M_AXI_AWREADY : std_logic;
-
-  signal d_M_AXI_WDATA   : std_logic_vector(31 downto 0);
-  signal d_M_AXI_WSTRB   : std_logic_vector(3 downto 0);
-  signal d_M_AXI_WLAST   : std_logic;
-  signal d_M_AXI_WUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_WVALID  : std_logic;
-  signal d_M_AXI_WREADY  : std_logic;
-
-  signal d_M_AXI_BID     : std_logic_vector(0 downto 0);
-  signal d_M_AXI_BRESP   : std_logic_vector(1 downto 0);
-  signal d_M_AXI_BUSER   : std_logic_vector(0 downto 0);
-  signal d_M_AXI_BVALID  : std_logic;
-  signal d_M_AXI_BREADY  : std_logic;
-
-  -- observability
-  signal pc_q, alu_y, regA_q, regB_q : std_logic_vector(31 downto 0);
-  signal eyu_BRcond : std_logic_vector(2 downto 0);
-  signal eyu_illegal: std_logic;
 begin
-  -- clock/reset
-  clk <= not clk after TCK/2;
-  process begin
-    reset <= '1'; wait for 100 ns; reset <= '0'; wait;
-  end process;
+    eyu_s_arready <= eyu_arready_r;
+    eyu_s_rvalid <= eyu_rvalid_r;
+    eyu_s_rdata <= eyu_rdata_r;
+    
+    eyu_s_rresp <= "00";
+    eyu_s_rlast <= '1';
+    
+    process(eyu_aclk)
+    begin
+       if rising_edge(eyu_aclk) then
+           if eyu_aresetn='0' then
+              eyu_arready_r <= '0'; 
+           elsif (eyu_have_req = '0') and (eyu_rvalid_r='0') then
+              eyu_arready_r <= '1';
+           else 
+               eyu_arready_r <= '0';
+           end if;
+       end if;
+    end process;
+    
+    process(eyu_aclk)
+        variable eyu_idx : integer;
+    begin
+        if rising_edge(eyu_aclk) then
+           if eyu_aresetn='0' then
+              eyu_rvalid_r <= '0';
+              eyu_rdata_r <= (others=>'0');
+              eyu_have_req <= '0';
+              eyu_araddr_r <= (others => '0');
+            else 
+              if eyu_s_arvalid='1' and eyu_arready_r='1' then
+                 eyu_araddr_r <= eyu_s_araddr;
+                 eyu_have_req <= '1';
+              end if;
+             if (eyu_have_req='1' and eyu_rvalid_r='0') then
+                 eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
+                 if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
+                      eyu_rdata_r <= eyu_rom(eyu_idx);
+                 else
+                      eyu_rdata_r <= (others => '0');
+                 end if;
+                 eyu_rvalid_r <= '1';
+                 eyu_have_req <= '0';
+              elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
+                  eyu_rvalid_r <= '0';
+             end if;
+            end if;
+          end if;
+    end process;
+    
 
-  -- Device Under Test: your connector (kept exactly as you posted, except no 'open' on write)
-  U_TOP: entity work.fetch_connector
-    port map (
-      clk=>clk, reset=>reset,
 
-      d_M_AXI_ACLK    => d_M_AXI_ACLK,
-      d_M_AXI_ARESETN => d_M_AXI_ARESETN,
-
-      -- READ
-      d_M_AXI_ARID    => d_M_AXI_ARID,
-      d_M_AXI_ARADDR  => d_M_AXI_ARADDR,
-      d_M_AXI_ARLEN   => d_M_AXI_ARLEN,
-      d_M_AXI_ARSIZE  => d_M_AXI_ARSIZE,
-      d_M_AXI_ARBURST => d_M_AXI_ARBURST,
-      d_M_AXI_ARLOCK  => d_M_AXI_ARLOCK,
-      d_M_AXI_ARCACHE => d_M_AXI_ARCACHE,
-      d_M_AXI_ARPROT  => d_M_AXI_ARPROT,
-      d_M_AXI_ARQOS   => d_M_AXI_ARQOS,
-      d_M_AXI_ARUSER  => d_M_AXI_ARUSER,
-      d_M_AXI_ARVALID => d_M_AXI_ARVALID,
-      d_M_AXI_ARREADY => d_M_AXI_ARREADY,
-
-      d_M_AXI_RID     => d_M_AXI_RID,
-      d_M_AXI_RDATA   => d_M_AXI_RDATA,
-      d_M_AXI_RRESP   => d_M_AXI_RRESP,
-      d_M_AXI_RLAST   => d_M_AXI_RLAST,
-      d_M_AXI_RUSER   => d_M_AXI_RUSER,
-      d_M_AXI_RVALID  => d_M_AXI_RVALID,
-      d_M_AXI_RREADY  => d_M_AXI_RREADY,
-
-      -- WRITE (fully connected; no 'open')
-      d_M_AXI_AWID    => d_M_AXI_AWID,
-      d_M_AXI_AWADDR  => d_M_AXI_AWADDR,
-      d_M_AXI_AWLEN   => d_M_AXI_AWLEN,
-      d_M_AXI_AWSIZE  => d_M_AXI_AWSIZE,
-      d_M_AXI_AWBURST => d_M_AXI_AWBURST,
-      d_M_AXI_AWLOCK  => d_M_AXI_AWLOCK,
-      d_M_AXI_AWCACHE => d_M_AXI_AWCACHE,
-      d_M_AXI_AWPROT  => d_M_AXI_AWPROT,
-      d_M_AXI_AWQOS   => d_M_AXI_AWQOS,
-      d_M_AXI_AWUSER  => d_M_AXI_AWUSER,
-      d_M_AXI_AWVALID => d_M_AXI_AWVALID,
-      d_M_AXI_AWREADY => d_M_AXI_AWREADY,
-
-      d_M_AXI_WDATA   => d_M_AXI_WDATA,
-      d_M_AXI_WSTRB   => d_M_AXI_WSTRB,
-      d_M_AXI_WLAST   => d_M_AXI_WLAST,
-      d_M_AXI_WUSER   => d_M_AXI_WUSER,
-      d_M_AXI_WVALID  => d_M_AXI_WVALID,
-      d_M_AXI_WREADY  => d_M_AXI_WREADY,
-
-      d_M_AXI_BID     => d_M_AXI_BID,
-      d_M_AXI_BRESP   => d_M_AXI_BRESP,
-      d_M_AXI_BUSER   => d_M_AXI_BUSER,
-      d_M_AXI_BVALID  => d_M_AXI_BVALID,
-      d_M_AXI_BREADY  => d_M_AXI_BREADY,
-
-      pc_q=>pc_q, alu_y=>alu_y, regA_q=>regA_q, regB_q=>regB_q,
-      eyu_BRcond=>eyu_BRcond, eyu_illegal=>eyu_illegal
-    );
-
-  -- Single AXI memory that supports READ and WRITE (initialised from your dataset)
-  U_MEM: entity work.eyu_axi_mem_model
-    generic map (EYU_ADDR_WIDTH=>32, EYU_DATA_WIDTH=>32, EYU_MEM_DEPTH_WORDS=>4096)
-    port map (
-      eyu_aclk     => d_M_AXI_ACLK,
-      eyu_aresetn  => d_M_AXI_ARESETN,
-
-      -- WRITE
-      eyu_s_awaddr => d_M_AXI_AWADDR,
-      eyu_s_awvalid=> d_M_AXI_AWVALID,
-      eyu_s_awready=> d_M_AXI_AWREADY,
-      eyu_s_wdata  => d_M_AXI_WDATA,
-      eyu_s_wstrb  => d_M_AXI_WSTRB,
-      eyu_s_wlast  => d_M_AXI_WLAST,
-      eyu_s_wvalid => d_M_AXI_WVALID,
-      eyu_s_wready => d_M_AXI_WREADY,
-      eyu_s_bresp  => d_M_AXI_BRESP,
-      eyu_s_bvalid => d_M_AXI_BVALID,
-      eyu_s_bready => d_M_AXI_BREADY,
-
-      -- READ
-      eyu_s_araddr => d_M_AXI_ARADDR,
-      eyu_s_arvalid=> d_M_AXI_ARVALID,
-      eyu_s_arready=> d_M_AXI_ARREADY,
-      eyu_s_rdata  => d_M_AXI_RDATA,
-      eyu_s_rresp  => d_M_AXI_RRESP,
-      eyu_s_rlast  => d_M_AXI_RLAST,
-      eyu_s_rvalid => d_M_AXI_RVALID,
-      eyu_s_rready => d_M_AXI_RREADY
-    );
-
-  -- Optional: a simple check on the very first fetch
-  process
-  begin
-    wait until d_M_AXI_ARESETN='1';
-    wait until (d_M_AXI_RVALID='1' and d_M_AXI_RREADY='1');
-    if d_M_AXI_RDATA /= x"00100293" then  -- this is bswap(93021000)
-      assert false report "First FETCH unexpected (check byte-swap/init)" severity warning;
-    else
-      report "First fetch looks OK (00100293)" severity note;
-    end if;
-    wait; -- keep sim running so you can observe STORE/LOAD waves
-  end process;
-end architecture;
+end Behavioral;
