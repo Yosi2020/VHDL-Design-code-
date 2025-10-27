@@ -1,63 +1,62 @@
 ----------------------------------------------------------------------------------
--- Company: 
--- Engineer: 
--- 
--- Create Date: 10/25/2025 12:30:45 AM
--- Design Name: 
--- Module Name: rom_model - Behavioral
--- Project Name: 
--- Target Devices: 
--- Tool Versions: 
--- Description: 
--- 
--- Dependencies: 
--- 
--- Revision:
--- Revision 0.01 - File Created
--- Additional Comments:
--- 
+-- rom_model.vhd   (now a read+write single-beat AXI memory)
+-- CHANGES:
+--   * ADDED full AXI write channel: AW/W/B ports + byte-lane writes (WSTRB)
+--   * Kept your dataset; memory can now be written by the LSU and read back
 ----------------------------------------------------------------------------------
-
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use ieee.numeric_std.all;
-
--- Uncomment the following library declaration if using
--- arithmetic functions with Signed or Unsigned values
---use IEEE.NUMERIC_STD.ALL;
-
--- Uncomment the following library declaration if instantiating
--- any Xilinx leaf cells in this code.
---library UNISIM;
---use UNISIM.VComponents.all;
+use IEEE.NUMERIC_STD.ALL;
 
 entity rom_model is
   generic (
-  eyu_addr_width : integer := 32;
-  eyu_data_width : integer := 32;
-  eyu_mem_depth_word : integer := 1024
+    eyu_addr_width     : integer := 32;
+    eyu_data_width     : integer := 32;
+    eyu_mem_depth_word : integer := 1024
   );
-  Port ( 
-  eyu_aclk : in std_logic;
-  eyu_aresetn : in std_logic;
-  eyu_s_araddr : in std_logic_vector(eyu_addr_width-1 downto 0);
-  eyu_s_arvalid : in std_logic;
-  eyu_s_arready : out std_logic;
-  eyu_s_rdata : out std_logic_vector(eyu_data_width-1 downto 0);
-  eyu_s_rresp : out std_logic_vector(1 downto 0);
-  eyu_s_rlast :out std_logic;
-  eyu_s_rvalid: out std_logic;
-  eyu_s_rready: in std_logic
+  Port (
+    -- clock / reset
+    eyu_aclk    : in  std_logic;
+    eyu_aresetn : in  std_logic;
+
+    -- READ address
+    eyu_s_araddr  : in  std_logic_vector(eyu_addr_width-1 downto 0);
+    eyu_s_arvalid : in  std_logic;
+    eyu_s_arready : out std_logic;
+
+    -- READ data
+    eyu_s_rdata   : out std_logic_vector(eyu_data_width-1 downto 0);
+    eyu_s_rresp   : out std_logic_vector(1 downto 0);
+    eyu_s_rlast   : out std_logic;
+    eyu_s_rvalid  : out std_logic;
+    eyu_s_rready  : in  std_logic;
+
+    -- ADDED: WRITE address
+    eyu_s_awaddr  : in  std_logic_vector(eyu_addr_width-1 downto 0);   -- ADDED
+    eyu_s_awvalid : in  std_logic;                                     -- ADDED
+    eyu_s_awready : out std_logic;                                     -- ADDED
+
+    -- ADDED: WRITE data
+    eyu_s_wdata   : in  std_logic_vector(eyu_data_width-1 downto 0);   -- ADDED
+    eyu_s_wstrb   : in  std_logic_vector(eyu_data_width/8-1 downto 0); -- ADDED
+    eyu_s_wlast   : in  std_logic;                                     -- ADDED
+    eyu_s_wvalid  : in  std_logic;                                     -- ADDED
+    eyu_s_wready  : out std_logic;                                     -- ADDED
+
+    -- ADDED: WRITE response
+    eyu_s_bresp   : out std_logic_vector(1 downto 0);                  -- ADDED
+    eyu_s_bvalid  : out std_logic;                                     -- ADDED
+    eyu_s_bready  : in  std_logic                                     -- ADDED
   );
 end rom_model;
 
 architecture Behavioral of rom_model is
-    subtype eyu_word_t is std_logic_vector(eyu_data_width-1 downto 0);
-    type eyu_rom_t is array (0 to eyu_mem_depth_word-1) of eyu_word_t;
-    
-    -- dataset
-    signal eyu_rom : eyu_rom_t := (
+  subtype eyu_word_t is std_logic_vector(eyu_data_width-1 downto 0);
+  type eyu_rom_t is array (0 to eyu_mem_depth_word-1) of eyu_word_t;
+
+  -- CHANGED: this array is now our RAM (read+write). Dataset is yours verbatim.
+  signal eyu_rom : eyu_rom_t := (
     0 => x"93021000",
     1 => x"33835200",
     2 => x"B3135300",
@@ -98,68 +97,132 @@ architecture Behavioral of rom_model is
     37 => x"33000000",
     38 => x"33000000",
     others => (others => '0')
-    );
-    
-    
-    
-    signal eyu_arready_r : std_logic:= '0';
-    signal eyu_rvalid_r : std_logic := '0';
-    signal eyu_rdata_r : std_logic_vector(eyu_data_width-1 downto 0) := (others=>'0');
-    
-    signal eyu_araddr_r : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0');
-    signal eyu_have_req : std_logic := '0';
+  );
 
+  -- READ regs (same as before)
+  signal eyu_arready_r : std_logic := '0';
+  signal eyu_rvalid_r  : std_logic := '0';
+  signal eyu_rdata_r   : std_logic_vector(eyu_data_width-1 downto 0) := (others=>'0');
+  signal eyu_araddr_r  : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0');
+  signal eyu_have_req  : std_logic := '0';
+
+  -- ADDED: WRITE regs
+  signal eyu_awaddr_r  : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0'); -- ADDED
+  signal eyu_bpend     : std_logic := '0';                                             -- ADDED
 begin
-    eyu_s_arready <= eyu_arready_r;
-    eyu_s_rvalid <= eyu_rvalid_r;
-    eyu_s_rdata <= eyu_rdata_r;
-    
-    eyu_s_rresp <= "00";
-    eyu_s_rlast <= '1';
-    
-    process(eyu_aclk)
-    begin
-       if rising_edge(eyu_aclk) then
-           if eyu_aresetn='0' then
-              eyu_arready_r <= '0'; 
-           elsif (eyu_have_req = '0') and (eyu_rvalid_r='0') then
-              eyu_arready_r <= '1';
-           else 
-               eyu_arready_r <= '0';
-           end if;
-       end if;
-    end process;
-    
-    process(eyu_aclk)
-        variable eyu_idx : integer;
-    begin
-        if rising_edge(eyu_aclk) then
-           if eyu_aresetn='0' then
-              eyu_rvalid_r <= '0';
-              eyu_rdata_r <= (others=>'0');
-              eyu_have_req <= '0';
-              eyu_araddr_r <= (others => '0');
-            else 
-              if eyu_s_arvalid='1' and eyu_arready_r='1' then
-                 eyu_araddr_r <= eyu_s_araddr;
-                 eyu_have_req <= '1';
-              end if;
-             if (eyu_have_req='1' and eyu_rvalid_r='0') then
-                 eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
-                 if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
-                      eyu_rdata_r <= eyu_rom(eyu_idx);
-                 else
-                      eyu_rdata_r <= (others => '0');
-                 end if;
-                 eyu_rvalid_r <= '1';
-                 eyu_have_req <= '0';
-              elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
-                  eyu_rvalid_r <= '0';
-             end if;
-            end if;
-          end if;
-    end process;
-    
+  --------------------------
+  -- Constant sidebands
+  --------------------------
+  eyu_s_rresp  <= "00";
+  eyu_s_rlast  <= '1';
+  eyu_s_bresp  <= "00";               -- ADDED
 
+  --------------------------
+  -- OUT ports from regs
+  --------------------------
+  eyu_s_arready <= eyu_arready_r;
+  eyu_s_rvalid  <= eyu_rvalid_r;
+  eyu_s_rdata   <= eyu_rdata_r;
+
+  -- ADDED: write readies
+  eyu_s_awready <= '1' when eyu_aresetn='1' else '0';    -- ADDED
+  eyu_s_wready  <= '1' when eyu_aresetn='1' else '0';    -- ADDED
+
+  --------------------------
+  -- READ address ready
+  --------------------------
+  process(eyu_aclk)
+  begin
+    if rising_edge(eyu_aclk) then
+      if eyu_aresetn='0' then
+        eyu_arready_r <= '0';
+      elsif (eyu_have_req='0') and (eyu_rvalid_r='0') then
+        eyu_arready_r <= '1';
+      else
+        eyu_arready_r <= '0';
+      end if;
+    end if;
+  end process;
+
+  --------------------------
+  -- Main READ/WRITE behavior (single-beat)
+  --------------------------
+  process(eyu_aclk)
+    variable eyu_idx : integer;
+    variable wd      : eyu_word_t;  -- ADDED: write buffer
+  begin
+    if rising_edge(eyu_aclk) then
+      if eyu_aresetn='0' then
+        -- READ reset
+        eyu_rvalid_r <= '0';
+        eyu_rdata_r  <= (others=>'0');
+        eyu_have_req <= '0';
+        eyu_araddr_r <= (others=>'0');
+        -- WRITE reset (ADDED)
+        eyu_awaddr_r <= (others=>'0');
+        eyu_bpend    <= '0';
+        eyu_s_bvalid <= '0';
+      else
+        --------------------------------
+        -- WRITE ADDRESS latch (ADDED)
+        --------------------------------
+        if (eyu_s_awvalid='1' and eyu_s_awready='1') then
+          eyu_awaddr_r <= eyu_s_awaddr;
+        end if;
+
+        --------------------------------
+        -- WRITE DATA with lane mask (ADDED)
+        --------------------------------
+        if (eyu_s_wvalid='1' and eyu_s_wready='1') then
+          eyu_idx := to_integer(unsigned(eyu_awaddr_r(eyu_addr_width-1 downto 2)));
+          if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
+            wd := eyu_rom(eyu_idx);
+            for b in 0 to (eyu_data_width/8 - 1) loop
+              if eyu_s_wstrb(b) = '1' then
+                wd(8*(b+1)-1 downto 8*b) := eyu_s_wdata(8*(b+1)-1 downto 8*b);
+              end if;
+            end loop;
+            eyu_rom(eyu_idx) <= wd;  -- write back into RAM
+          end if;
+          eyu_bpend <= '1';
+        end if;
+
+        --------------------------------
+        -- WRITE RESPONSE (ADDED)
+        --------------------------------
+        if (eyu_bpend='1') and (eyu_s_bvalid='0') then
+          eyu_s_bvalid <= '1';
+          eyu_bpend    <= '0';
+        elsif (eyu_s_bvalid='1') and (eyu_s_bready='1') then
+          eyu_s_bvalid <= '0';
+        end if;
+
+        --------------------------------
+        -- READ ADDRESS latch (as before)
+        --------------------------------
+        if (eyu_s_arvalid='1' and eyu_arready_r='1') then
+          eyu_araddr_r <= eyu_s_araddr;
+          eyu_have_req <= '1';
+        end if;
+
+        --------------------------------
+        -- READ DATA (single-beat) (as before)
+        --------------------------------
+        if (eyu_have_req='1' and eyu_rvalid_r='0') then
+          eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
+          if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
+            eyu_rdata_r <= eyu_rom(eyu_idx);
+          else
+            eyu_rdata_r <= (others => '0');
+          end if;
+          eyu_rvalid_r <= '1';
+          eyu_have_req <= '0';
+        elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
+          eyu_rvalid_r <= '0';
+        end if;
+
+      end if;
+    end if;
+  end process;
 
 end Behavioral;
