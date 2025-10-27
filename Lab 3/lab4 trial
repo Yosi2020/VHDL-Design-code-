@@ -1,137 +1,175 @@
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
-entity rom_model is
+entity eyu_axi_mem_model is
   generic (
-    eyu_addr_width      : integer := 32;
-    eyu_data_width      : integer := 32;
-    eyu_mem_depth_word  : integer := 1024
+    EYU_ADDR_WIDTH      : integer := 32;
+    EYU_DATA_WIDTH      : integer := 32;
+    EYU_MEM_DEPTH_WORDS : integer := 4096  -- 16 KiB
   );
-  Port (
-    eyu_aclk      : in  std_logic;
-    eyu_aresetn   : in  std_logic;
-    eyu_s_araddr  : in  std_logic_vector(eyu_addr_width-1 downto 0);
+  port (
+    eyu_aclk    : in  std_logic;
+    eyu_aresetn : in  std_logic;
+
+    -- WRITE ADDRESS
+    eyu_s_awaddr  : in  std_logic_vector(EYU_ADDR_WIDTH-1 downto 0);
+    eyu_s_awvalid : in  std_logic;
+    eyu_s_awready : out std_logic;
+
+    -- WRITE DATA
+    eyu_s_wdata   : in  std_logic_vector(EYU_DATA_WIDTH-1 downto 0);
+    eyu_s_wstrb   : in  std_logic_vector(EYU_DATA_WIDTH/8-1 downto 0);
+    eyu_s_wlast   : in  std_logic;
+    eyu_s_wvalid  : in  std_logic;
+    eyu_s_wready  : out std_logic;
+
+    -- WRITE RESP
+    eyu_s_bresp   : out std_logic_vector(1 downto 0);
+    eyu_s_bvalid  : out std_logic;
+    eyu_s_bready  : in  std_logic;
+
+    -- READ ADDRESS
+    eyu_s_araddr  : in  std_logic_vector(EYU_ADDR_WIDTH-1 downto 0);
     eyu_s_arvalid : in  std_logic;
     eyu_s_arready : out std_logic;
-    eyu_s_rdata   : out std_logic_vector(eyu_data_width-1 downto 0);
+
+    -- READ DATA
+    eyu_s_rdata   : out std_logic_vector(EYU_DATA_WIDTH-1 downto 0);
     eyu_s_rresp   : out std_logic_vector(1 downto 0);
     eyu_s_rlast   : out std_logic;
     eyu_s_rvalid  : out std_logic;
     eyu_s_rready  : in  std_logic
   );
-end rom_model;
+end entity;
 
-architecture Behavioral of rom_model is
-  subtype eyu_word_t is std_logic_vector(eyu_data_width-1 downto 0);
-  type eyu_rom_t is array (0 to eyu_mem_depth_word-1) of eyu_word_t;
+architecture rtl of eyu_axi_mem_model is
+  subtype eyu_word_t is std_logic_vector(EYU_DATA_WIDTH-1 downto 0);
+  type eyu_ram_t is array (0 to EYU_MEM_DEPTH_WORDS-1) of eyu_word_t;
 
-  -- === YOUR DATASET (big-endian words as provided) ===
-  signal eyu_rom : eyu_rom_t := (
-    0 => x"93021000",
-    1 => x"33835200",
-    2 => x"B3135300",
-    3 => x"338E5340",
-    4 => x"B30E5040",
-    5 => x"332FD001",
-    6 => x"B33FD001",
-    7 => x"B3AA6200",
-    8 => x"333B0000",
-    9 => x"33C4CE01",
-    10 => x"B3545440",
-    11 => x"33595400",
-    12 => x"B3E95300",
-    13 => x"33FA7900",
-    14 => x"63846200",
-    15 => x"33000000",
-    16 => x"6384F201",
-    17 => x"33000000",
-    18 => x"6394F201",
-    19 => x"33000000",
-    20 => x"63946200",
-    21 => x"33000000",
-    22 => x"63440000",
-    23 => x"33000000",
-    24 => x"63C45E00",
-    25 => x"33000000",
-    26 => x"63D45E00",
-    27 => x"33000000",
-    28 => x"63540000",
-    29 => x"33000000",
-    30 => x"63E45E00",
-    31 => x"33000000",
-    32 => x"63E4D201",
-    33 => x"33000000",
-    34 => x"63F4D201",
-    35 => x"33000000",
-    36 => x"63F45E00",
-    37 => x"33000000",
-    38 => x"33000000",
+  -- ADDED: byte-swap function (big-endian literal -> little-endian RAM)
+  function eyu_bswap32(x: std_logic_vector(31 downto 0)) return std_logic_vector is
+  begin
+    return x(7 downto 0) & x(15 downto 8) & x(23 downto 16) & x(31 downto 24);
+  end function;
+
+  -- ADDED: initialize RAM with YOUR DATASET (byte-swapped ON INIT)
+  signal eyu_ram : eyu_ram_t := (
+    0  => eyu_bswap32(x"93021000"),
+    1  => eyu_bswap32(x"33835200"),
+    2  => eyu_bswap32(x"B3135300"),
+    3  => eyu_bswap32(x"338E5340"),
+    4  => eyu_bswap32(x"B30E5040"),
+    5  => eyu_bswap32(x"332FD001"),
+    6  => eyu_bswap32(x"B33FD001"),
+    7  => eyu_bswap32(x"B3AA6200"),
+    8  => eyu_bswap32(x"333B0000"),
+    9  => eyu_bswap32(x"33C4CE01"),
+    10 => eyu_bswap32(x"B3545440"),
+    11 => eyu_bswap32(x"33595400"),
+    12 => eyu_bswap32(x"B3E95300"),
+    13 => eyu_bswap32(x"33FA7900"),
+    14 => eyu_bswap32(x"63846200"),
+    15 => eyu_bswap32(x"33000000"),
+    16 => eyu_bswap32(x"6384F201"),
+    17 => eyu_bswap32(x"33000000"),
+    18 => eyu_bswap32(x"6394F201"),
+    19 => eyu_bswap32(x"33000000"),
+    20 => eyu_bswap32(x"63946200"),
+    21 => eyu_bswap32(x"33000000"),
+    22 => eyu_bswap32(x"63440000"),
+    23 => eyu_bswap32(x"33000000"),
+    24 => eyu_bswap32(x"63C45E00"),
+    25 => eyu_bswap32(x"33000000"),
+    26 => eyu_bswap32(x"63D45E00"),
+    27 => eyu_bswap32(x"33000000"),
+    28 => eyu_bswap32(x"63540000"),
+    29 => eyu_bswap32(x"33000000"),
+    30 => eyu_bswap32(x"63E45E00"),
+    31 => eyu_bswap32(x"33000000"),
+    32 => eyu_bswap32(x"63E4D201"),
+    33 => eyu_bswap32(x"33000000"),
+    34 => eyu_bswap32(x"63F4D201"),
+    35 => eyu_bswap32(x"33000000"),
+    36 => eyu_bswap32(x"63F45E00"),
+    37 => eyu_bswap32(x"33000000"),
+    38 => eyu_bswap32(x"33000000"),
     others => (others => '0')
   );
 
-  -- ADDED: internal regs (don’t read OUT ports)
-  signal eyu_arready_r : std_logic := '0';
-  signal eyu_rvalid_r  : std_logic := '0';
-  signal eyu_rdata_r   : std_logic_vector(eyu_data_width-1 downto 0) := (others=>'0');
-  signal eyu_araddr_r  : std_logic_vector(eyu_addr_width-1 downto 0) := (others=>'0');
-  signal eyu_have_req  : std_logic := '0';
-
-  -- ADDED: byte-swap 32-bit word (fixes big-endian list to little-endian fetch)
-  function eyu_bswap32(x: std_logic_vector(31 downto 0)) return std_logic_vector is
-  begin
-    return x(7 downto 0) & x(15 downto 8) & x(23 downto 16) & x(31 downto 24); -- ADDED
-  end function;
+  signal aw_addr_r : std_logic_vector(EYU_ADDR_WIDTH-1 downto 0) := (others=>'0');
+  signal ar_addr_r : std_logic_vector(EYU_ADDR_WIDTH-1 downto 0) := (others=>'0');
+  signal bpend     : std_logic := '0';
+  signal rvalid_r  : std_logic := '0';
 begin
-  eyu_s_arready <= eyu_arready_r;
-  eyu_s_rvalid  <= eyu_rvalid_r;
-  eyu_s_rdata   <= eyu_rdata_r;
+  -- simple AXI-Lite single-beat behavior
+  eyu_s_awready <= '1' when eyu_aresetn='1' else '0';
+  eyu_s_wready  <= '1' when eyu_aresetn='1' else '0';
+  eyu_s_arready <= '1' when eyu_aresetn='1' else '0';
+
+  eyu_s_bresp   <= "00";
   eyu_s_rresp   <= "00";
   eyu_s_rlast   <= '1';
 
-  -- only accept AR when not busy
   process(eyu_aclk)
+    variable idx : integer;
+    variable wd  : eyu_word_t;
   begin
     if rising_edge(eyu_aclk) then
       if eyu_aresetn='0' then
-        eyu_arready_r <= '0';
-      elsif (eyu_have_req='0') and (eyu_rvalid_r='0') then
-        eyu_arready_r <= '1';
+        bpend    <= '0';
+        eyu_s_bvalid <= '0';
+        rvalid_r <= '0';
+        eyu_s_rdata <= (others=>'0');
       else
-        eyu_arready_r <= '0';
-      end if;
-    end if;
-  end process;
-
-  process(eyu_aclk)
-    variable eyu_idx : integer;
-  begin
-    if rising_edge(eyu_aclk) then
-      if eyu_aresetn='0' then
-        eyu_rvalid_r <= '0';
-        eyu_rdata_r  <= (others=>'0');
-        eyu_have_req <= '0';
-        eyu_araddr_r <= (others=>'0');
-      else
-        if (eyu_s_arvalid='1' and eyu_arready_r='1') then
-          eyu_araddr_r <= eyu_s_araddr;
-          eyu_have_req <= '1';
+        -- WRITE address
+        if (eyu_s_awvalid='1' and eyu_s_awready='1') then
+          aw_addr_r <= eyu_s_awaddr;
         end if;
 
-        if (eyu_have_req='1' and eyu_rvalid_r='0') then
-          eyu_idx := to_integer(unsigned(eyu_araddr_r(eyu_addr_width-1 downto 2)));
-          if (eyu_idx >= 0) and (eyu_idx < eyu_mem_depth_word) then
-            eyu_rdata_r <= eyu_bswap32(eyu_rom(eyu_idx));  -- ADDED: byte-swap on output
-          else
-            eyu_rdata_r <= (others => '0');
+        -- WRITE data with byte strobes
+        if (eyu_s_wvalid='1' and eyu_s_wready='1') then
+          idx := to_integer(unsigned(aw_addr_r(EYU_ADDR_WIDTH-1 downto 2)));
+          if (idx >= 0) and (idx < EYU_MEM_DEPTH_WORDS) then
+            wd := eyu_ram(idx);
+            for b in 0 to EYU_DATA_WIDTH/8-1 loop
+              if eyu_s_wstrb(b)='1' then
+                wd(8*(b+1)-1 downto 8*b) := eyu_s_wdata(8*(b+1)-1 downto 8*b);
+              end if;
+            end loop;
+            eyu_ram(idx) <= wd;
           end if;
-          eyu_rvalid_r <= '1';
-          eyu_have_req <= '0';
-        elsif (eyu_rvalid_r='1' and eyu_s_rready='1') then
-          eyu_rvalid_r <= '0';
+          bpend <= '1';
         end if;
 
+        -- WRITE response
+        if bpend='1' and eyu_s_bvalid='0' then
+          eyu_s_bvalid <= '1';
+          bpend        <= '0';
+        elsif eyu_s_bvalid='1' and eyu_s_bready='1' then
+          eyu_s_bvalid <= '0';
+        end if;
+
+        -- READ address
+        if (eyu_s_arvalid='1' and eyu_s_arready='1') then
+          ar_addr_r <= eyu_s_araddr;
+        end if;
+
+        -- READ data (single-beat)
+        if (eyu_s_arvalid='1' and eyu_s_arready='1') or (rvalid_r='1' and eyu_s_rready='0') then
+          idx := to_integer(unsigned(ar_addr_r(EYU_ADDR_WIDTH-1 downto 2)));
+          if (idx >= 0) and (idx < EYU_MEM_DEPTH_WORDS) then
+            eyu_s_rdata <= eyu_ram(idx);
+          else
+            eyu_s_rdata <= (others => '0');
+          end if;
+          rvalid_r <= '1';
+        elsif (rvalid_r='1' and eyu_s_rready='1') then
+          rvalid_r <= '0';
+        end if;
+
+        eyu_s_rvalid <= rvalid_r;
       end if;
     end if;
   end process;
-end Behavioral;
+end architecture;
