@@ -1,0 +1,148 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 09/23/2025 01:17:17 AM
+-- Design Name: 
+-- Module Name: connector - Behavioral
+-- Project Name: 
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.numeric_std.all;
+
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity connector is
+  Port ( 
+    clk   : in  std_logic;
+    reset : in  std_logic;
+    eyu : in  std_logic_vector(31 downto 0);
+    exec_en : in std_logic;  -- 1-cycle execute enable
+    -- observability
+    pc_q   : out std_logic_vector(31 downto 0);
+    alu_y  : out std_logic_vector(31 downto 0);
+    regA_q : out std_logic_vector(31 downto 0);
+    regB_q : out std_logic_vector(31 downto 0);
+    eyu_illegal: out std_logic;
+    eyu_BRcond : out std_logic_vector(2 downto 0); -- new added 
+    
+    --LSU
+    eyu_lsaddress : out std_logic_vector(31 downto 0);
+    eyu_store_data : out std_logic_vector(31 downto 0);
+    eyu_load_data : in std_logic_vector(31 downto 0);
+    eyu_func3 : out std_logic_vector(2 downto 0);
+    eyu_isLOAD : out std_logic;
+    eyu_isSTORE : out std_logic;
+    start_load : out std_logic;
+    start_store : out std_logic;
+    ls_ready: in std_logic
+  );
+end connector;
+
+architecture Behavioral of connector is
+      -- wires from decoder
+      signal Asel_s, Bsel_s, Dsel_s : std_logic_vector(4 downto 0);
+      signal Dlen_s, Dlen_g : std_logic;
+      signal PCAsel_s, IMMBsel_s, PCDsel_s, PCle_s, PCie_s, isBR_s : std_logic;
+      signal BRcond_s : std_logic_vector(2 downto 0);
+      signal ALUFunc_s: std_logic_vector(3 downto 0);
+      signal IMM_s    : std_logic_vector(31 downto 0);
+      signal PCle_g, PCie_g : std_logic;  -- gate enable to pc
+      signal eyu_branch_q : std_logic;
+      
+      -- for lsu
+      signal eyu_isLOAD_s : std_logic;
+      signal eyu_isSTORE_s : std_logic;
+      signal eyu_func3_s : std_logic_vector(2 downto 0);
+      signal eyu_branch_taken : std_logic;
+      signal mem_op_s : std_logic;
+      signal pc_go : std_logic;
+begin
+    eyu_BRcond <= BRcond_s;
+    mem_op_s <= eyu_isLOAD_s or eyu_isSTORE_s;
+    eyu_branch_taken <= isBR_s and eyu_branch_q;
+    start_load  <= exec_en and eyu_isLOAD_s;
+    start_store <= exec_en and eyu_isSTORE_s;
+    pc_go  <= (exec_en and not mem_op_s) or (ls_ready and mem_op_s);
+    PCle_g <= exec_en and (PCle_s or eyu_branch_taken);
+    PCie_g <= exec_en and (PCie_s and not (PCle_s or eyu_branch_taken)); 
+    Dlen_g <= Dlen_s and ((exec_en and (not mem_op_s)) or (ls_ready and eyu_isLOAD_s ));
+    
+    -- for lsu
+    eyu_isLOAD <= eyu_isLOAD_s;
+    eyu_isSTORE <= eyu_isSTORE_s;
+    eyu_func3 <= eyu_func3_s;
+    
+    U_DEC : entity work.decoder
+    port map (
+      clk => clk,
+      eyu => eyu,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_s,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_s,
+      PCie => PCie_s,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUfunc => ALUFunc_s,
+      IMM => IMM_s,
+      eyu_illegal => eyu_illegal,
+      eyu_func3 => eyu_func3_s,
+      eyu_isLOAD => eyu_isLOAD_s,
+      eyu_isSTORE => eyu_isSTORE_s
+    ); 
+
+  U_DP : entity work.data_path
+    port map (
+      clk => clk,
+      reset => reset,
+      Asel => Asel_s,
+      Bsel => Bsel_s,
+      Dsel => Dsel_s,
+      Dlen => Dlen_g,
+      PCAsel => PCAsel_s,
+      IMMBsel => IMMBsel_s,
+      PCDsel => PCDsel_s,
+      PCle => PCle_g,
+      PCie => PCie_g,
+      isBR => isBR_s,
+      BRcond => BRcond_s,
+      ALUFunc => ALUFunc_s,
+      IMM => IMM_s,
+      pc_q => pc_q,
+      alu_y => alu_y,
+      regA_q => regA_q,
+      regB_q => regB_q,
+      branch_q => eyu_branch_q,
+      --lsu
+      eyu_lsaddress => eyu_lsaddress,
+      eyu_store_data => eyu_store_data,
+      eyu_load_data => eyu_load_data,
+      eyu_isLOAD => eyu_isLOAD_s
+    );
+
+end Behavioral;
