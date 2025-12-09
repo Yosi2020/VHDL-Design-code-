@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="test_block_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="axi_bram_ctrl_funcs" />
+            <top_module name="glbl" />
+            <top_module name="ipif_pkg" />
+            <top_module name="test_block" />
+            <top_module name="vcomponents" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="3,254.460 ns"></ZoomStartTime>
+      <ZoomEndTime time="3,600.961 ns"></ZoomEndTime>
+      <Cursor1Time time="3,344.460 ns"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="156"></NameColumnWidth>
+      <ValueColumnWidth column_width="109"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="54" />
+   <wvobject type="logic" fp_name="/test_block/clk">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/reset">
+      <obj_property name="ElementShortName">reset</obj_property>
+      <obj_property name="ObjectShortName">reset</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/dip_switch">
+      <obj_property name="ElementShortName">dip_switch[15:0]</obj_property>
+      <obj_property name="ObjectShortName">dip_switch[15:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/led_16">
+      <obj_property name="ElementShortName">led_16[15:0]</obj_property>
+      <obj_property name="ObjectShortName">led_16[15:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/load_data">
+      <obj_property name="ElementShortName">load_data[31:0]</obj_property>
+      <obj_property name="ObjectShortName">load_data[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/regA">
+      <obj_property name="ElementShortName">regA[31:0]</obj_property>
+      <obj_property name="ObjectShortName">regA[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/regB">
+      <obj_property name="ElementShortName">regB[31:0]</obj_property>
+      <obj_property name="ObjectShortName">regB[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/alu">
+      <obj_property name="ElementShortName">alu[31:0]</obj_property>
+      <obj_property name="ObjectShortName">alu[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/store_data">
+      <obj_property name="ElementShortName">store_data[31:0]</obj_property>
+      <obj_property name="ObjectShortName">store_data[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/pc">
+      <obj_property name="ElementShortName">pc[31:0]</obj_property>
+      <obj_property name="ObjectShortName">pc[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/error">
+      <obj_property name="ElementShortName">error</obj_property>
+      <obj_property name="ObjectShortName">error</obj_property>
+   </wvobject>
+   <wvobject type="protoinst" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI">
+      <obj_property name="children_use_element_short_name">true</obj_property>
+      <obj_property name="WaveformStyle">STYLE_ENUM_TRANSACTION</obj_property>
+      <obj_property name="EnumTransactionColorTable">0=blank 1=#D399FF 2=pink</obj_property>
+      <obj_property name="EnumTransactionValueTable">0=blank;1=Read;2=Write;3=Read/Write</obj_property>
+      <obj_property name="UseCustomSignalColor">true</obj_property>
+      <obj_property name="CustomSignalColor">turquoise</obj_property>
+      <obj_property name="Render_Data">/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI.readWriteSummary</obj_property>
+      <obj_property name="Radix">UNSIGNEDDECRADIX</obj_property>
+      <obj_property name="CellHeight">36</obj_property>
+      <obj_property name="ElementShortName">M_AXI</obj_property>
+      <obj_property name="ObjectShortName">M_AXI</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/clk">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/reset">
+      <obj_property name="ElementShortName">reset</obj_property>
+      <obj_property name="ObjectShortName">reset</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ACLK">
+      <obj_property name="ElementShortName">M_AXI_ACLK</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ACLK</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARESETN">
+      <obj_property name="ElementShortName">M_AXI_ARESETN</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARESETN</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARID">
+      <obj_property name="ElementShortName">M_AXI_ARID[0:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARID[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARADDR">
+      <obj_property name="ElementShortName">M_AXI_ARADDR[31:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARADDR[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARLEN">
+      <obj_property name="ElementShortName">M_AXI_ARLEN[7:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARLEN[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARSIZE">
+      <obj_property name="ElementShortName">M_AXI_ARSIZE[2:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARSIZE[2:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARBURST">
+      <obj_property name="ElementShortName">M_AXI_ARBURST[1:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARBURST[1:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARLOCK">
+      <obj_property name="ElementShortName">M_AXI_ARLOCK</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARLOCK</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARCACHE">
+      <obj_property name="ElementShortName">M_AXI_ARCACHE[3:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARCACHE[3:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARPROT">
+      <obj_property name="ElementShortName">M_AXI_ARPROT[2:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARPROT[2:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARQOS">
+      <obj_property name="ElementShortName">M_AXI_ARQOS[3:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARQOS[3:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARVALID">
+      <obj_property name="ElementShortName">M_AXI_ARVALID</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARVALID</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_ARREADY">
+      <obj_property name="ElementShortName">M_AXI_ARREADY</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_ARREADY</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RID">
+      <obj_property name="ElementShortName">M_AXI_RID[0:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RID[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RDATA">
+      <obj_property name="ElementShortName">M_AXI_RDATA[31:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RDATA[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RRESP">
+      <obj_property name="ElementShortName">M_AXI_RRESP[1:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RRESP[1:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RLAST">
+      <obj_property name="ElementShortName">M_AXI_RLAST</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RLAST</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RUSER">
+      <obj_property name="ElementShortName">M_AXI_RUSER[0:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RUSER[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RVALID">
+      <obj_property name="ElementShortName">M_AXI_RVALID</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RVALID</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_RREADY">
+      <obj_property name="ElementShortName">M_AXI_RREADY</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_RREADY</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_AWADDR">
+      <obj_property name="ElementShortName">M_AXI_AWADDR[31:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_AWADDR[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_AWVALID">
+      <obj_property name="ElementShortName">M_AXI_AWVALID</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_AWVALID</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_AWREADY">
+      <obj_property name="ElementShortName">M_AXI_AWREADY</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_AWREADY</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_WDATA">
+      <obj_property name="ElementShortName">M_AXI_WDATA[31:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_WDATA[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_WSTRB">
+      <obj_property name="ElementShortName">M_AXI_WSTRB[3:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_WSTRB[3:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_WLAST">
+      <obj_property name="ElementShortName">M_AXI_WLAST</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_WLAST</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_WVALID">
+      <obj_property name="ElementShortName">M_AXI_WVALID</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_WVALID</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_WREADY">
+      <obj_property name="ElementShortName">M_AXI_WREADY</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_WREADY</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_BRESP">
+      <obj_property name="ElementShortName">M_AXI_BRESP[1:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_BRESP[1:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_BUSER">
+      <obj_property name="ElementShortName">M_AXI_BUSER[0:0]</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_BUSER[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_BVALID">
+      <obj_property name="ElementShortName">M_AXI_BVALID</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_BVALID</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/M_AXI_BREADY">
+      <obj_property name="ElementShortName">M_AXI_BREADY</obj_property>
+      <obj_property name="ObjectShortName">M_AXI_BREADY</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/pc_q">
+      <obj_property name="ElementShortName">pc_q[31:0]</obj_property>
+      <obj_property name="ObjectShortName">pc_q[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/alu_y">
+      <obj_property name="ElementShortName">alu_y[31:0]</obj_property>
+      <obj_property name="ObjectShortName">alu_y[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/regA_q">
+      <obj_property name="ElementShortName">regA_q[31:0]</obj_property>
+      <obj_property name="ObjectShortName">regA_q[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/regB_q">
+      <obj_property name="ElementShortName">regB_q[31:0]</obj_property>
+      <obj_property name="ObjectShortName">regB_q[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/eyu_BRcond">
+      <obj_property name="ElementShortName">eyu_BRcond[2:0]</obj_property>
+      <obj_property name="ObjectShortName">eyu_BRcond[2:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/eyu_store_data">
+      <obj_property name="ElementShortName">eyu_store_data[31:0]</obj_property>
+      <obj_property name="ObjectShortName">eyu_store_data[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/eyu_load_data">
+      <obj_property name="ElementShortName">eyu_load_data[31:0]</obj_property>
+      <obj_property name="ObjectShortName">eyu_load_data[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/test_block/u_bd/design_1_i/fetch_connector_0/eyu_illegal">
+      <obj_property name="ElementShortName">eyu_illegal</obj_property>
+      <obj_property name="ObjectShortName">eyu_illegal</obj_property>
+   </wvobject>
+</wave_config>
